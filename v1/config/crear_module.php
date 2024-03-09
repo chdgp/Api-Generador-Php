@@ -60,6 +60,7 @@ if (isset($_POST["tabla"]) && isset($_POST["subcarpeta"]))
 
         // Constructor 
         $codigo .= "\n  public function __construct(\$request = null) {\n"
+        . "    if (\$request !== null)\n"
         . "    foreach (\$request as \$key => \$value) {\n"
         . "        if (strpos(\$key, '_g') === 0) {\n"
         . "            unset(\$request[\$key]);\n"
