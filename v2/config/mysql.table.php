@@ -173,6 +173,17 @@ public function insert($table_name, $data) {
     $values = array_values($valid_data);
     try {
         $stmt->execute($values);
+
+        if( ConfigInit::debugCtrl() ){    
+            $obj->debug['insert'] = (object)[
+                'sql' => $sql,
+                'keys' => $keys,
+                'placeholders' => $placeholders,
+            ];
+        }
+
+
+
     } catch (PDOException $e) {
         $obj = (object) ['msj' => 'Error al insertar los datos en la ['.$table_name.']: ' . $e->getMessage(), 'resp' => 'err'];
     }
@@ -210,6 +221,7 @@ public function insert($table_name, $data) {
         $valid_data = [];
         foreach ($data as $key => $value) {
             foreach ($table_description as $column) {
+
                 if (
                     $column['Field'] == $key
                     && $column['Key'] != 'PRI'
@@ -218,6 +230,16 @@ public function insert($table_name, $data) {
                     $valid_data[$key] = $value;
                     break;
                 }
+
+                if (
+                    $column['Type'] == 'datetime'
+                    && substr($column['Field'], 0, 6) === "update"
+                ) {
+                    
+                    $valid_data[$column['Field']] = date('Y-m-d H:i:s');
+                    //var_dump($valid_data); die;
+                }
+
             }
         }
     
@@ -258,10 +280,12 @@ public function insert($table_name, $data) {
         $stmt->execute($values);
         
         if( ConfigInit::debugCtrl() ){    
-            $obj->update_data['sql']      = $xsql;
-            $obj->update_data['valid_where']      = $valid_data;
-            $obj->update_data['where_conditions'] = $where_conditions;
-            $obj->update_data['where_values']     = $where_values;
+            $obj->debug['update'] = (object)[
+                'sql' => $xsql,
+                'valid_data' => $valid_data,
+                'where_conditions' => $where_conditions,
+                'where_values' => $where_values,
+            ];
         }
 
         $obj->resp = ( $obj->count = $stmt->rowCount() )? 'edit':'no_change';
@@ -295,7 +319,7 @@ public function insert($table_name, $data) {
                 }
             }
         }
-        $obj->delete_data['valid_where'] = $valid_where;
+        $obj->delete_data = $valid_where;
     
         if (empty($valid_where)) {
             return ['msj' =>'La condición de borrado no contiene un campo válido con [id]','resp' =>'err'];
@@ -326,7 +350,7 @@ public function insert($table_name, $data) {
  *
  * @return stdClass Un objeto que contiene la información de la consulta, incluyendo las tablas, datos, filtro, consulta SQL y los resultados.
  */
-public function selectAllTables($tables, $data = [], $filter = null, $customJoins = null, $subquery = null, $fieldper = []) {
+public function selectAllTables($tables, $data = [], $filter = null, $customJoins = null, $subquery = null, $fieldper = [], $alias_activar = true, $limit = null) {
     $obj = (object) [];
     
     $joins = [];
@@ -336,9 +360,14 @@ public function selectAllTables($tables, $data = [], $filter = null, $customJoin
 
     foreach ($tables as $table) {
         $table_description = $this->describeTable($table);
+        $squemas[] = $table_description;
 
         // Genera un alias basado en el nombre de la tabla
-        $alias = substr($table, 0, 1) . rand(100, 999); // Puedes personalizar esto de acuerdo a tus necesidades
+        if($alias_activar){
+            $alias = substr($table, 0, 1) . rand(100, 999); // Puedes personalizar esto de acuerdo a tus necesidades
+        }else{
+            $alias = '';
+        }
 
         $aliases[$table] = $alias;
 
@@ -351,7 +380,7 @@ public function selectAllTables($tables, $data = [], $filter = null, $customJoin
                         $where_clause .= ' AND ';
                     }
 
-                    $where_clause .= "$alias.$field = ?";
+                    $where_clause .= ($alias != '') ? "$alias.$field = ?" : "$field = ?";
                     $where_values[] = $value;
 
                 }
@@ -364,19 +393,20 @@ public function selectAllTables($tables, $data = [], $filter = null, $customJoin
 
     foreach ($tables as $table) {
         if ($table !== $firstTable) {
-            $joins[] = "NATURAL JOIN $table AS {$aliases[$table]}";
+            #$joins[] = "NATURAL JOIN $table AS {$aliases[$table]}";
+            $joins[] = ($alias !='')
+            ? "NATURAL JOIN $table AS {$aliases[$table]} "
+            : "NATURAL JOIN {$table}";
         }
     }
 
     // Agregar joins personalizados si se proporcionan
     if (!is_null($customJoins)) {
-    $obj->customJoins = $customJoins;
     $joins[] = $customJoins;
     }
 
     // Aplicar filtro adicional si se proporciona
     if (!is_null($filter)) {
-    $obj->filter = $filter;
         if (!empty($where_clause)) {
                 $where_clause .= ' AND ';
             }
@@ -390,7 +420,9 @@ public function selectAllTables($tables, $data = [], $filter = null, $customJoin
         $fieldSelect= ' *, ';
     }
 
-
+    if (!is_null($limit)){
+        $addlimit= "LIMIT {$limit}";
+    }
 
     if (!empty($fieldper)) {
         implode(', ', $fieldper);
@@ -398,7 +430,9 @@ public function selectAllTables($tables, $data = [], $filter = null, $customJoin
     }else{
         $fieldSelect =' * ';
     }
-     $query = "{$subquery_begin} SELECT {$fieldSelect} FROM $firstTable AS {$aliases[$firstTable]} " . implode(' ', $joins) ;
+     $query = ($alias !='') 
+     ? "{$subquery_begin} SELECT {$fieldSelect} FROM $firstTable AS {$aliases[$firstTable]} " . implode(' ', $joins)." {$addlimit}"  
+     : "{$subquery_begin} SELECT {$fieldSelect} FROM $firstTable " . implode(' ', $joins)." {$addlimit}";
 
     if (!empty($where_clause)) {
         $query .= " WHERE $where_clause";
@@ -407,24 +441,26 @@ public function selectAllTables($tables, $data = [], $filter = null, $customJoin
         $query .= $subquery_clause;
     }
 
-
+    #echo '<pre>';print_r($query);die; 
 
     
     try {
     
         if( ConfigInit::debugCtrl() ){
-        $obj->sql         = $query;
-        $obj->tables      = $tables;
-        $obj->data        = $data;
-        $obj->filter      = $filter;
-        $obj->customJoins = $customJoins;
-        $obj->fieldper    = $fieldper;
+            $obj->debug['select'] = (object)[
+                'sql' => $query,
+                'tables' => $tables,
+                'filter' => $filter,
+                'customJoins' => $customJoins,
+                'fieldper' => $fieldper,
+                'squemas' => $squemas,
+            ];
         }
 
 
         $stmt = $this->db->prepare($query);
         $stmt->execute($where_values);
-        $obj->count = $stmt->rowCount();
+        $obj->count = (int) $stmt->rowCount();
 
         /* FORCE: TYPE DATO FOR FIELD
         if ($obj->count > 0) 

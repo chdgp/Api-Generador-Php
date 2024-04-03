@@ -4,7 +4,7 @@ ini_set("session.cookie_lifetime",21200);
 ini_set("session.gc_maxlifetime",21200); 
 ini_set("session.save_path","/tmp");
 session_cache_expire(21200);
-date_default_timezone_set('Etc/GMT-5');
+date_default_timezone_set('Etc/GMT+5');
 $_THEME='sbadmin';
 $_RUTA_THEME="theme/{$_THEME}/php/";
 @$ymdhms = strftime('%Y%m%d%H%M%S');

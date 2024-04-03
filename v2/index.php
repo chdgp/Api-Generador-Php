@@ -1,10 +1,7 @@
 <?php
-require('config\config.init.php');
-require('config\mysql.pdo.php');
-
+require('config/config.init.php');
+require('config/mysql.pdo.php');
 ?>
-
-
 <!DOCTYPE html>
 <html>
 <head>
