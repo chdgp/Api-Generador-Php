@@ -6,7 +6,8 @@ if (isset($_POST["tabla"]) && isset($_POST["subcarpeta"]))
 
     $tabla = trim($_POST["tabla"]);
     $obj = (object) [];
-
+    $php_version = phpversion();
+    $is_php_version_less_than_8 = version_compare($php_version, '8.0.0', '<');
 
     $carpeta    = 'module';
     $subcarpeta = trim($_POST["subcarpeta"]);
@@ -65,8 +66,10 @@ if (isset($_POST["tabla"]) && isset($_POST["subcarpeta"]))
         . "\n"
         . "\n"
         . "     public function switch_$tabla(\$request)\n"
-        . "     {\n"
-        . "       switch (\$request->data->mode)\n"
+        . "     {\n";
+            if ($is_php_version_less_than_8) {
+        
+        $codigo.= "       switch (\$request->data->mode)\n"
         . "       {\n"
         . "         case 'insert_$tabla':\n"
         . "            \$request->{__CLASS__}= self::_insert_$tabla(\$request);\n"
@@ -92,8 +95,23 @@ if (isset($_POST["tabla"]) && isset($_POST["subcarpeta"]))
         . "            \$request->{__CLASS__}= parent::describeTable(__CLASS__ );\n"
         . "             echo json_encode(\$request);\n"
         . "         break;\n"
-        . "       }\n"
-        . "     }\n"
+        . "       }\n";
+        
+            } else {
+        $codigo.= "      \$request->{__CLASS__} = match (\$request->data->mode) {\n"
+        . "       'insert_$tabla' => self::_insert_$tabla(\$request),\n"
+        . "       'update_$tabla' => self::_update_$tabla(\$request),\n"
+        . "       'select_$tabla' => self::_select_$tabla(\$request),\n"
+        . "       'delete_$tabla' => self::_delete_$tabla(\$request),\n"
+        . "       'table_$tabla'  => self::_table_$tabla(\$request),\n"
+        . "       'describe_$tabla' => parent::describeTable(__CLASS__),\n"
+        . "        default => null,\n"
+        . "       }:\n"
+        . "       if (is_object(\$request->{__CLASS__}) || is_array(\$request->{__CLASS__})) echo json_encode(\$request);\n";
+            }
+
+
+        $codigo.= "     }\n"
         . "\n"
         . "\n"
         . "     public function _insert_$tabla(\$request)\n"

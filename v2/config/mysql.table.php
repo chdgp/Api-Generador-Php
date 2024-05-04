@@ -68,6 +68,7 @@ class MySQLTable extends MySQLPdo {
      * @return array Un arreglo de resultados de la consulta.
      */
     public function selectAll($table_name, $data = []) {
+        $obj= (object) [];
         $data = self::objectToArray($data);
 
         // Obtener la descripción de la tabla
@@ -212,6 +213,7 @@ public function insert($table_name, $data) {
     public function update($table_name, $data, $where) {
         $obj = (object) [];
         $data = self::objectToArray($data);
+        $where_values = [];
     
         // Obtener la descripción de la tabla
         $table_description = $this->describeTable($table_name);
@@ -356,6 +358,8 @@ public function selectAllTables($tables, $data = [], $filter = null, $customJoin
     $joins = [];
     $where_clause = '';
     $where_values = [];
+    $subquery_clause ='';
+    $subquery_begin ='';
     $data = self::objectToArray($data);
 
     foreach ($tables as $table) {
@@ -420,10 +424,7 @@ public function selectAllTables($tables, $data = [], $filter = null, $customJoin
         $fieldSelect= ' *, ';
     }
 
-    if (!is_null($limit)){
-        $addlimit= "LIMIT {$limit}";
-    }
-
+  
     if (!empty($fieldper)) {
         implode(', ', $fieldper);
         $fieldSelect.= implode(', ', $fieldper);
@@ -431,32 +432,40 @@ public function selectAllTables($tables, $data = [], $filter = null, $customJoin
         $fieldSelect =' * ';
     }
      $query = ($alias !='') 
-     ? "{$subquery_begin} SELECT {$fieldSelect} FROM $firstTable AS {$aliases[$firstTable]} " . implode(' ', $joins)." {$addlimit}"  
-     : "{$subquery_begin} SELECT {$fieldSelect} FROM $firstTable " . implode(' ', $joins)." {$addlimit}";
+     ? "{$subquery_begin} SELECT {$fieldSelect} FROM $firstTable AS {$aliases[$firstTable]} " . implode(' ', $joins)." "  
+     : "{$subquery_begin} SELECT {$fieldSelect} FROM $firstTable " . implode(' ', $joins)." ";
 
     if (!empty($where_clause)) {
         $query .= " WHERE $where_clause";
     }
+   
+
     if (!empty($subquery_clause)) {
         $query .= $subquery_clause;
     }
 
-    #echo '<pre>';print_r($query);die; 
+    if (!is_null($limit)){
+        $query .=  " LIMIT {$limit}";
+    }
 
+
+    if( ConfigInit::debugCtrl() )
+        $obj->debug['select'] = (object)[
+            'sql' => $query,
+            'tables' => $tables,
+            'filter' => $filter,
+            'customJoins' => $customJoins,
+            'fieldper' => $fieldper,
+            'squemas' => $squemas,
+        ];
+    
+        #echo '<pre>';print_r($obj);die; 
     
     try {
     
-        if( ConfigInit::debugCtrl() ){
-            $obj->debug['select'] = (object)[
-                'sql' => $query,
-                'tables' => $tables,
-                'filter' => $filter,
-                'customJoins' => $customJoins,
-                'fieldper' => $fieldper,
-                'squemas' => $squemas,
-            ];
-        }
 
+
+    #echo '<pre>';print_r($query);die; 
 
         $stmt = $this->db->prepare($query);
         $stmt->execute($where_values);
@@ -481,7 +490,8 @@ public function selectAllTables($tables, $data = [], $filter = null, $customJoin
     } catch (\Throwable $th) {
         $obj->resp= 'err';
         $obj->error= $th;
-        echo '<pre>';print_r($obj);die; 
+        //echo '<pre>';print_r($obj);die; 
+        echo json_encode($obj);die; 
     }
 
 
