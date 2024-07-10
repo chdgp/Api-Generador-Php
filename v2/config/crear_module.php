@@ -106,7 +106,7 @@ if (isset($_POST["tabla"]) && isset($_POST["subcarpeta"]))
         . "       'table_$tabla'  => self::_table_$tabla(\$request),\n"
         . "       'describe_$tabla' => parent::describeTable(__CLASS__),\n"
         . "        default => null,\n"
-        . "       }:\n"
+        . "       };\n"
         . "       if (is_object(\$request->{__CLASS__}) || is_array(\$request->{__CLASS__})) echo json_encode(\$request);\n";
             }
 

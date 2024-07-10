@@ -9,21 +9,34 @@ class MySQLPdo extends ConfigInit {
 
   public static function getPDO($setName = '') {
     try {
+     /*
+      $options = array(
+        PDO::ATTR_PERSISTENT => true,  // Habilitar conexiones persistentes
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION // Configurar el modo de error para lanzar excepciones
+    );
+    */
         //utf8mb4 =>aceptaEmogi
       $pdo = new PDO('mysql:host='.HOST_PROD.';dbname='.DB_PROD.';charset=utf8',  USER_PROD, PASS_PROD);
       $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);  
       if($setName) $pdo->exec("set names {$setName}");
 
+
+      
       return $pdo;
     } catch (PDOException $e) {
 
-      echo "Error ".__CLASS__.": " . $e->getMessage();
+      echo "Error <b>".__CLASS__.":</b> " . $e->getMessage();
     }
 
   }
 
   public static function dbPDO($_row) {
     try {
+     /* $options = array(
+        PDO::ATTR_PERSISTENT => true,  // Habilitar conexiones persistentes
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION // Configurar el modo de error para lanzar excepciones
+    );
+    */
       $_row = (is_string($_row) )? json_decode($_row) : $_row;
       //echo '<pre>';echo print_r($_row);
       $pdo = new PDO('mysql:host='.$_row->db_host.';dbname='.$_row->db_name.';charset=utf8',  $_row->db_username, $_row->db_password);
@@ -94,6 +107,7 @@ class MySQLPdo extends ConfigInit {
 
 
   public static function getTablesDB() {
+    $option ='';
     // Obtener información del tipo de columna desde el 
     $pdo = self::getPDO();
     $stmt = $pdo->query("SHOW TABLES");
