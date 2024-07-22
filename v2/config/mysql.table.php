@@ -355,7 +355,7 @@ class MySQLTable extends MySQLPdo
      *
      * @return object un objeto que contiene la información de la consulta, incluyendo las tablas, datos, filtro, consulta SQL y los resultados
      */
-    public function selectAllTables($tables, $data = [], $filter = null, $customJoins = null, $subquery = null, $fieldper = [], $alias_activar = true, $limit = null)
+    public function selectAllTables($tables, $data = [], $filter = null, $customJoins = null, $subquery = null, $fieldper = [], $alias_activar = true, $limit = null, $orden = null)
     {
         $adb = self::getPDO();
         $obj = (object) [];
@@ -443,6 +443,10 @@ class MySQLTable extends MySQLPdo
 
         if (!empty($subquery_clause)) {
             $query .= $subquery_clause;
+        }
+        
+        if (!is_null($orden)) {
+            $query .= $orden;
         }
 
         if (!is_null($limit)) {
