@@ -1,9 +1,11 @@
 <?php
+if (session_status() == PHP_SESSION_NONE) session_start();
 
 class util
 {
     public const SECRET_IV = 'B6Po)&dha%$#%$#hus]3wgv8';
     public const METHOD = 'AES-256-CBC';
+    private $filePath = 'csrf_token.json';
 
     public function __construct($request = null)
     {
@@ -14,6 +16,16 @@ class util
                     break;
                 case 'decode':
                     echo json_encode($this->decodeToken($request));
+                    break;
+                case 'vefToken':
+                    $token =  property_exists($request, 'token') 
+                    ? $request->token
+                    : '';
+                    
+                    echo json_encode($this->verifyToken($token));
+                    break;
+                case 'getToken':
+                    echo json_encode($this->getToken());
                     break;
             }
         }
@@ -360,6 +372,89 @@ class util
         // Si hubo algún error, retornar NULL
         return (object) ['original' => '', 'webp' => '', 'resp' => 'file_create_err'];
     }
+
+
+
+    /**
+     * Genera un token CSRF y lo almacena en un archivo JSON.
+     *
+     * @return object JSON con el token CSRF.
+     */
+    private function generateToken() {
+        $token = bin2hex(random_bytes(32));
+        $data = [
+            'csrf_token' => $token,
+            'created_at' => time()
+        ];
+        file_put_contents($this->filePath, json_encode($data));
+        chmod($this->filePath, 0666); // Conceder permisos de escritura
+        return (object)['csrf_token' => $token];
+    }
+
+    /**
+     * Verifica el token CSRF recibido.
+     *
+     * @param string $token El token CSRF a verificar.
+     * @return object JSON con el estado de la verificación.
+     */
+    public function verifyToken($token) {
+        if (!$token) return (object)['resp' => 'requiere_param'];
+        
+        if (!file_exists($this->filePath)) return (object)(['resp' => 'error', 'message' => 'Token no encontrado']);
+        $data = json_decode(file_get_contents($this->filePath), true);
+
+        if (isset($data['csrf_token']) && is_string($data['csrf_token']) && hash_equals($data['csrf_token'], $token)) {
+            return (object)(['resp' => 'success', 'message' => 'Token válido']);
+        }
+        return (object)(['resp' => 'error', 'message' => 'Token no válido']);
+    }
+
+    /**
+     * Obtiene el token CSRF si es válido y no ha expirado.
+     *
+     * @return object JSON con el token CSRF o mensaje de error.
+     */
+    public function getToken() {
+        if (!file_exists($this->filePath)) {
+            return $this->generateToken();
+        }
+
+        $data = json_decode(file_get_contents($this->filePath), true);
+        $currentTime = time();
+        $tokenAge = $currentTime - $data['created_at'];
+
+        if ($tokenAge > 600) { // 600 segundos = 10 minutos
+            return $this->generateToken();
+        }
+
+        return (object)['csrf_token' => $data['csrf_token']];
+    }
+
+
+    public static function sumarHoras($fecha, $horas, $zonaHoraria = 'America/Lima') {
+        // Intentamos crear un objeto DateTime desde la cadena de fecha y hora
+        $nuevaFecha = DateTime::createFromFormat('Y-m-d H:i:s', $fecha, new DateTimeZone($zonaHoraria));
+    
+        // Si falla, intentamos crear un objeto DateTime desde la cadena de fecha
+        if ($nuevaFecha === false) {
+            $nuevaFecha = DateTime::createFromFormat('Y-m-d', $fecha, new DateTimeZone($zonaHoraria));
+            if ($nuevaFecha === false) {
+                // Manejar el error si la fecha no se pudo crear
+                throw new Exception("Formato de fecha incorrecto");
+            }
+            // Establecemos la hora a medianoche
+            $nuevaFecha->setTime((int)date('H'), (int)date('i'), (int)date('s'));
+        }
+    
+        // Sumamos las horas
+        $nuevaFecha->modify("+$horas hours");
+        $fechaformt = $nuevaFecha->format('Y-m-d H:i:s');
+    
+        // Devolvemos la nueva fecha formateada
+        return (string) $fechaformt;
+    }
+
+
 }
 
 $util = new util((object) $_REQUEST);
