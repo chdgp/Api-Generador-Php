@@ -7,6 +7,7 @@ class MySQLTable extends MySQLPdo
     /** @var PDO La instancia de conexión a la base de datos. */
     private $db;
     private $time;
+    private $describe_force;
     
     /**
      * Constructor de la clase MySQLTable.
@@ -18,6 +19,11 @@ class MySQLTable extends MySQLPdo
         parent::__construct(); // Llamar al constructor de la clase padre (MySQL)
        # $this->db = parent::getPDO();
         $this->time = microtime(true);
+
+        # Config class
+        
+        //force file cache table
+        $this->describe_force = false;
     }
 
     /**
@@ -50,12 +56,62 @@ class MySQLTable extends MySQLPdo
 
     public function describeTable($table_name)
     {
+        return self::getTableDescription($table_name, $this->describe_force);
+
+        // old: no cache function
         $adb = self::getPDO();
         $stmt = $adb->prepare("DESCRIBE $table_name");
         $stmt->execute();
         $adb = null;
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+
+    
+    /**
+     * Obtiene la descripción de una tabla de la base de datos, con caché.
+     *
+     * @param string $tableName Nombre de la tabla
+     * @param bool $force Si es true, fuerza la regeneración del caché
+     * @return array Descripción de la tabla
+     * @throws Exception Si hay un error al acceder a la base de datos o al sistema de archivos
+     */
+    private function getTableDescription(string $tableName, bool $force = false): array
+    {
+        $cacheFile = __DIR__ . "/cache/{$tableName}_description.json";
+
+        // Verifica si el archivo de caché existe y no se está forzando la actualización
+        if (!$force && is_file($cacheFile)) {
+            return (array) json_decode(file_get_contents($cacheFile), true) ?? [];
+        }
+
+        // Verifica si el nombre de la tabla es seguro
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $tableName)) {
+            throw new Exception("Nombre de tabla no válido.");
+        }
+
+        // Intenta crear el directorio de caché si no existe
+        if (!is_dir(__DIR__ . '/cache') && !mkdir(__DIR__ . '/cache', 0755, true)) {
+            throw new Exception("No se pudo crear el directorio de caché.");
+        }
+
+        try {
+            $adb = self::getPDO();
+            $stmt = $adb->prepare("DESCRIBE `$tableName`");
+            $stmt->execute();
+            $description = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Almacena la descripción en el archivo de caché
+            file_put_contents($cacheFile, json_encode($description, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
+            chmod($cacheFile, 0644);
+
+            return (array) $description;
+        } catch (PDOException $e) {
+            throw new Exception("Error al obtener la descripción de la tabla: " . $e->getMessage());
+        }
+    }
+
+
 
     /**
      * Realiza una consulta SELECT en la tabla de la base de datos.

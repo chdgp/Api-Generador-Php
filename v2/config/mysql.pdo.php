@@ -120,5 +120,37 @@ class MySQLPdo extends ConfigInit {
   return $option;
   }
 
+  /**
+     * Encripta una cadena utilizando base64 repetidamente.
+     *
+     * @param string $text La cadena a encriptar.
+     * @param int $iterations El número de veces que se aplicará base64_encode.
+     * @return string La cadena encriptada.
+     */
+    public static function customEncrypt($text, $iterations = 3)
+    {
+        $encryptedText = $text;
+        for ($i = 0; $i < $iterations; $i++) {
+            $encryptedText = base64_encode($encryptedText);
+        }
+        return $encryptedText;
+    }
+
+    /**
+     * Desencripta una cadena previamente encriptada con customEncrypt.
+     *
+     * @param string $encryptedText La cadena encriptada.
+     * @param int $iterations El número de veces que se aplicó base64_encode.
+     * @return string La cadena desencriptada.
+     */
+    public static function customDecrypt($encryptedText, $iterations = 3)
+    {
+        $decryptedText = $encryptedText;
+        for ($i = 0; $i < $iterations; $i++) {
+            $decryptedText = base64_decode($decryptedText);
+        }
+        return $decryptedText;
+    }
+
 }//END CLASS
 ?>

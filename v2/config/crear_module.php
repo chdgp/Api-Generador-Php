@@ -65,7 +65,7 @@ if (isset($_POST["tabla"]) && isset($_POST["subcarpeta"]))
         . "     }\n"
         . "\n"
         . "\n"
-        . "     public function switch_$tabla(\$request)\n"
+        . "     public function switch_$tabla(\$request , \$returnjson= true)\n"
         . "     {\n";
             if ($is_php_version_less_than_8) {
         
@@ -73,29 +73,29 @@ if (isset($_POST["tabla"]) && isset($_POST["subcarpeta"]))
         . "       {\n"
         . "         case 'insert_$tabla':\n"
         . "            \$request->{__CLASS__}= self::_insert_$tabla(\$request);\n"
-        . "             echo json_encode(\$request);\n"
         . "         break;\n"
         . "         case 'update_$tabla':\n"
         . "            \$request->{__CLASS__}= self::_update_$tabla(\$request);\n"
-        . "             echo json_encode(\$request);\n"
         . "         break;\n"
         . "         case 'select_$tabla':\n"
         . "            \$request->{__CLASS__}= self::_select_$tabla(\$request);\n"
-        . "             echo json_encode(\$request);\n"
         . "         break;\n"
         . "         case 'delete_$tabla':\n"
-        . "          \$request->{__CLASS__}= self::_delete_$tabla(\$request);\n"
-        . "             echo json_encode(\$request);\n"
+        . "            \$request->{__CLASS__}= self::_delete_$tabla(\$request);\n"
         . "         break;\n"
         . "         case 'table_$tabla':\n"
-        . "          \$request->{__CLASS__}= self::_table_$tabla(\$request);\n"
-        . "             echo json_encode(\$request);\n"
+        . "            \$request->{__CLASS__}= self::_table_$tabla(\$request);\n"
         . "         break;\n"
         . "         case 'describe_$tabla':\n"
         . "            \$request->{__CLASS__}= parent::describeTable(__CLASS__ );\n"
-        . "             echo json_encode(\$request);\n"
         . "         break;\n"
-        . "       }\n";
+        . "       }\n"
+        . "       if (is_object(\$request->{__CLASS__}) || is_array(\$request->{__CLASS__}) && \$returnjson) {\n"
+        . "         header('Content-Type: application/json');\n"
+        . "         echo json_encode(\$request);\n"
+        . "         exit;\n"
+        . "       }\n"
+        . "       return \$request;\n";
         
             } else {
         $codigo.= "      \$request->{__CLASS__} = match (\$request->data->mode) {\n"
@@ -107,8 +107,13 @@ if (isset($_POST["tabla"]) && isset($_POST["subcarpeta"]))
         . "       'describe_$tabla' => parent::describeTable(__CLASS__),\n"
         . "        default => null,\n"
         . "       };\n"
-        . "       if (is_object(\$request->{__CLASS__}) || is_array(\$request->{__CLASS__})) echo json_encode(\$request);\n";
-            }
+        . "       if (is_object(\$request->{__CLASS__}) || is_array(\$request->{__CLASS__}) && \$returnjson) {\n"
+        . "         header('Content-Type: application/json');\n"
+        . "         echo json_encode(\$request);\n"
+        . "         exit;\n"
+        . "       }\n"
+        . "       return \$request;\n";
+    }
 
 
         $codigo.= "     }\n"
@@ -142,7 +147,7 @@ if (isset($_POST["tabla"]) && isset($_POST["subcarpeta"]))
         . "       \$data = \$request->data;\n"
         . "       //if ( empty(\$data->id$tabla) ) return \$data;\n"
         . "\n"
-        . "       return parent::selectAllTables([__CLASS__], \$data);\n"
+        . "       return parent::selectAllTables([__CLASS__], \$data, \$filter = null, \$customJoins = null, \$subquery = null, \$fieldper = [], \$alias_activar = true, \$limit = null, \$orden = null);\n"
         . "     }\n"
         . "\n"
         . "\n"
@@ -151,7 +156,7 @@ if (isset($_POST["tabla"]) && isset($_POST["subcarpeta"]))
         . "       \$obj = (object) [];\n"
         . "       \$data = \$request->data;\n"
         . "       if (empty(\$data->id$tabla)) return ['resp' => 'requiere_id', 'data' => \$data]; \n"
-        . "       \$get = parent::selectAllTables([__CLASS__], \$data);\n"
+        . "       \$get = parent::selectAllTables([__CLASS__], \$data, \$filter = null, \$customJoins = null, \$subquery = null, \$fieldper = [], \$alias_activar = true, \$limit = null, \$orden = null);\n"
         . "\n"
         . "       \$columnMap = [\n"
         . "     //  head  => body : table\n"
@@ -194,7 +199,7 @@ require_once("module/'.$subcarpeta.'/model/'.$tabla.'.model.php");';
 $codigo2 .="\n"
 . "\$requestBody = file_get_contents('php://input');\n"
 . "\$requestData = json_decode(\$requestBody);\n"
-. "\$data->data  = (!empty(\$_REQUEST))?(object)\$_REQUEST:\$requestData;\n"
+. "\$data->data  = (!empty(\$_GET))?(object)\$_GET:\$requestData;\n"
 . "\$x{$tabla}->switch_{$tabla}(\$data);\n"
 . "\n"
 . "?>";
