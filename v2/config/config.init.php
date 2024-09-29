@@ -1,20 +1,19 @@
 <?php 
 require_once("env.php");
+require_once("init.php");
 
 class ConfigInit {
   
-  const DB_PROD = 'dolibarr';
-  const PASS_PROD = '';
-  const USER_PROD = 'root';
-  const HOST_PROD = 'localhost';
   private static $variableActiva = false;
 
 
   public function __construct() {
-      @define('DB_PROD', self::DB_PROD);
-      @define('PASS_PROD', self::PASS_PROD);
-      @define('USER_PROD', self::USER_PROD);
-      @define('HOST_PROD', self::HOST_PROD);
+    global $dbconect;
+      // init.php declaration
+      @define('DB_PROD', $dbconect['DB_PROD']);
+      @define('PASS_PROD', $dbconect['PASS_PROD']);
+      @define('USER_PROD', $dbconect['USER_PROD']);
+      @define('HOST_PROD', $dbconect['HOST_PROD']);
   }
 
 

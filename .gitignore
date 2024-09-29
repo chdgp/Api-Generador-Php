@@ -1,8 +1,7 @@
-v1/module/*
 v2/module/*
-v1/storage/*
 v2/storage/*
 v2/config/csrf_token.json
 v2/config/cache
 *.json
 *.log
+v2/config/init.php
