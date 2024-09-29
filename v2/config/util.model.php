@@ -21,7 +21,6 @@ class util
                     $token =  property_exists($request, 'token') 
                     ? $request->token
                     : '';
-                    
                     echo json_encode($this->verifyToken($token));
                     break;
                 case 'getToken':
@@ -452,6 +451,75 @@ class util
     
         // Devolvemos la nueva fecha formateada
         return (string) $fechaformt;
+    }
+
+    /**
+     * Genera una sal aleatoria.
+     *
+     * @param int $length Longitud de la sal en bytes (por defecto 16)
+     * @return string Sal generada en formato hexadecimal
+     */
+    public function generateSalt($length = 16) {
+        return bin2hex(random_bytes($length));
+    }
+
+    /**
+     * Deriva una clave a partir de una contraseña y una sal usando PBKDF2.
+     *
+     * @param string $password Contraseña para derivar la clave
+     * @param string $salt Sal para usar en la derivación
+     * @return string Clave derivada
+     */
+    public function deriveKey($password, $salt) {
+        return hash_pbkdf2("sha256", $password, $salt, 10000, 32);
+    }
+    
+    /**
+     * Encripta un texto usando AES-256-CBC con una sal aleatoria y HMAC.
+     *
+     * @param string $text Texto a encriptar
+     * @return string Texto encriptado en formato base64
+     */
+    public function encrypt($text) {
+        $salt = self::generateSalt();
+        $key = self::deriveKey(self::SECRET_IV, $salt);
+        $iv = openssl_random_pseudo_bytes(16);
+        
+        $encrypted = openssl_encrypt($text, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv);
+        $hmac = hash_hmac('sha256', $encrypted, $key, true);
+        
+        $result = $salt . $iv . $hmac . $encrypted;
+        return base64_encode($result);
+    }
+    
+    /**
+     * Desencripta un texto previamente encriptado con el método encrypt().
+     *
+     * @param string $encryptedText Texto encriptado en formato base64
+     * @return string Texto desencriptado
+     * @throws Exception Si la verificación HMAC falla o si la desencriptación falla
+     */
+    public function decrypt($encryptedText) {
+        $decoded = base64_decode($encryptedText);
+        
+        $salt = substr($decoded, 0, 32);
+        $iv = substr($decoded, 32, 16);
+        $hmac = substr($decoded, 48, 32);
+        $encrypted = substr($decoded, 80);
+        
+        $key = self::deriveKey(self::SECRET_IV, $salt);
+        
+        $calculatedHmac = hash_hmac('sha256', $encrypted, $key, true);
+        if (!hash_equals($hmac, $calculatedHmac)) {
+            throw new Exception("HMAC verification failed");
+        }
+        
+        $decrypted = openssl_decrypt($encrypted, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv);
+        if ($decrypted === false) {
+            throw new Exception("Decryption failed");
+        }
+        
+        return $decrypted;
     }
 
 
