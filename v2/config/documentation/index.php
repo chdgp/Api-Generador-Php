@@ -19,15 +19,17 @@ function generateApiDocs() {
             $controllerName = pathinfo($controller, PATHINFO_FILENAME);
             $endpoint = str_replace('.controller', '', $controllerName);
 
-            $documentation .= "## {$endpoint}\n\n";
-            $documentation .= "**Endpoint:** `POST /{$endpoint}/controller/{$endpoint}.controller.php`\n\n";
+            //$documentation .= "## {$endpoint}\n\n";
+            $documentation .= "<details><summary>{$endpoint}</summary>\n\n";
+            $documentation .= "**POST:** ` /{$endpoint}/controller/{$endpoint}.controller.php`\n\n";
             $documentation .= "**Parameters (Body):**\n\n";
             
             $modes = ['select', 'insert', 'update', 'delete', 'describe'];
-            foreach ($modes as $mode) {
-                $documentation .= "```json\n{\n  \"mode\": \"{$mode}_{$endpoint}\"\n}\n```\n\n";
+            $documentation .= "```json\n{\n";
+            foreach ($modes as $index => $mode) {
+                $documentation .= "   \"mode\": \"{$mode}_{$endpoint}\"" . ($index < count($modes) - 1 ? "," : "") ."\n";
             }
-
+            $documentation .= "}\n```\n\n";
             // Read and include the JSON description file
             $jsonFile = "{$cachePath}/{$endpoint}_description.json";
             if (file_exists($jsonFile)) {
@@ -49,6 +51,8 @@ function generateApiDocs() {
             }
 
             $documentation .= "---\n\n";
+            $documentation .= "</details>\n\n";
+
         }
     }
 

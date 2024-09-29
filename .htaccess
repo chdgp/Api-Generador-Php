@@ -1,0 +1,34 @@
+# Desactivar la navegación de directorios
+Options -Indexes
+
+# Habilitar el motor de reescritura
+RewriteEngine On
+
+# Regla para ejecutar archivos PHP sin extensión en /v2/module/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^v2/module/([^/]+)/controller/([^/]+)$ v2/module/$1/controller/$2.php [L]
+# Bloquear el acceso a todo en la carpeta cache
+RewriteRule ^v2/config/cache/.* - [F,L]
+
+# Bloquear acceso a directorios .git en la raíz y en subdirectorios fuera de /module/
+RedirectMatch 404 /\.git
+RedirectMatch 404 /(?!v2/module/).*\.git
+
+# Bloquear acceso a archivos específicos de Git fuera de /module/
+<FilesMatch "(^\.gitignore|^\.gitattributes|\.git-.*|CHANGELOG\.md|README\.md)">
+    Order Deny,Allow
+    Deny from all
+</FilesMatch>
+
+# Proteger el archivo .htaccess
+<Files .htaccess>
+    Order Deny,Allow
+    Deny from all
+</Files>
+
+# Permitir acceso a archivos PHP
+<FilesMatch "\.php$">
+    Order Allow,Deny
+    Allow from all
+</FilesMatch>

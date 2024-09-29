@@ -5,3 +5,4 @@ v2/config/cache
 *.json
 *.log
 v2/config/init.php
+key.js
