@@ -9,8 +9,11 @@ NOTA: Las carpetas se crean en v1/module/* automaticamente
 v2\config\init.php => file add
 
 $dbconect['DB_PROD'] => Base de datos MySql
+
 $dbconect['PASS_PROD'] => Contraseña Base de datos MySql
+
 $dbconect['USER_PROD'] => Usuario Base de datos MySql
+
 $dbconect['HOST_PROD'] => Servidor ip o localhost
 
 ## 🛠 Skills
