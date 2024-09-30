@@ -5,11 +5,11 @@ class util
 {
     public const SECRET_IV = 'B6Po)&dha%$#%$#hus]3wgv8';
     public const METHOD = 'AES-256-CBC';
-    private $filePath = __DIR__.'/csrf_token.json';
+    private $filePath = __DIR__ . '/csrf_token.json';
 
     public function __construct($request = null)
     {
-        if ($request !== null && property_exists($request,'mode')) {
+        if ($request !== null && property_exists($request, 'mode')) {
             switch ($request->mode) {
                 case 'encode':
                     echo json_encode($this->encodeToken($request));
@@ -18,9 +18,9 @@ class util
                     echo json_encode($this->decodeToken($request));
                     break;
                 case 'vefToken':
-                    $token =  property_exists($request, 'token') 
-                    ? $request->token
-                    : '';
+                    $token =  property_exists($request, 'token')
+                        ? $request->token
+                        : '';
                     echo json_encode($this->verifyToken($token));
                     break;
                 case 'getToken':
@@ -71,11 +71,11 @@ class util
     public static function save_log($prefix, $message)
     {
         date_default_timezone_set('America/Lima');
-        $log = date('F j, Y, g:i a').PHP_EOL.
-            $message.PHP_EOL.
-            '-------------------------'.PHP_EOL;
+        $log = date('F j, Y, g:i a') . PHP_EOL .
+            $message . PHP_EOL .
+            '-------------------------' . PHP_EOL;
         // Save string to log, use FILE_APPEND to append.
-        $r = file_put_contents('AD/'.$prefix.'_log_'.date('j.n.Y').'.log', $log, FILE_APPEND);
+        $r = file_put_contents('AD/' . $prefix . '_log_' . date('j.n.Y') . '.log', $log, FILE_APPEND);
         date_default_timezone_set('UTC');
     }
 
@@ -119,11 +119,11 @@ class util
             $output = openssl_encrypt($req, self::METHOD, $key, OPENSSL_RAW_DATA, $iv);
             $obj->output = base64_encode($output);
         } catch (PDOException $e) {
-            $obj->mensaje = 'Error al encode: '.$e->getMessage();
+            $obj->mensaje = 'Error al encode: ' . $e->getMessage();
             $obj->resp = 'err';
         }
 
-          return $obj;
+        return $obj;
     }
 
     /**
@@ -141,11 +141,11 @@ class util
             $iv = substr(hex2bin(hash('sha256', self::SECRET_IV)), 0, 16);
             $obj->output = openssl_decrypt(base64_decode($req), self::METHOD, $key, OPENSSL_RAW_DATA, $iv);
         } catch (PDOException $e) {
-            $obj->mensaje = 'Error al decode: '.$e->getMessage();
+            $obj->mensaje = 'Error al decode: ' . $e->getMessage();
             $obj->resp = 'err';
         }
 
-          return $obj;
+        return $obj;
     }
 
     public static function getConex($token)
@@ -156,11 +156,11 @@ class util
 
             return self::decodeToken($obj->string);
         } catch (PDOException $e) {
-            $obj->mensaje = 'Error al decode: '.$e->getMessage();
+            $obj->mensaje = 'Error al decode: ' . $e->getMessage();
             $obj->resp = 'err';
         }
 
-          return $obj;
+        return $obj;
     }
 
     public static function delObj($_this)
@@ -186,12 +186,12 @@ class util
     {
         $html = '';
         $obj = (object) [];
-        $html .= '<table id="'.$tableId.'" class="table '.$className.' table-hover table-condensed">';
+        $html .= '<table id="' . $tableId . '" class="table ' . $className . ' table-hover table-condensed">';
         $html .= '<thead><tr>';
 
         // Generate table header (th) based on $columnMap keys
         foreach ($columnMap as $th => $columnKey) {
-            $html .= '<th>'.$th.'</th>';
+            $html .= '<th>' . $th . '</th>';
         }
 
         $html .= '</tr></thead><tbody>';
@@ -207,7 +207,7 @@ class util
                     // De lo contrario, asume que es una propiedad de la fila
                     $value = $row->$columnValue;
                 }
-                $html .= '<td>'.$value.'</td>';
+                $html .= '<td>' . $value . '</td>';
             }
             $html .= '</tr>';
         }
@@ -241,8 +241,8 @@ class util
         $fulldir = str_replace('/config', '', $carpeta_actual);
 
         $url_base .= ($path)
-        ? str_replace($_SERVER['DOCUMENT_ROOT'], '', $fulldir)
-        : '';
+            ? str_replace($_SERVER['DOCUMENT_ROOT'], '', $fulldir)
+            : '';
 
         return $url_base;
     }
@@ -257,9 +257,15 @@ class util
      *
      * @return object un objeto con las rutas de los archivos guardados y un mensaje de respuesta
      */
-    public static function createStorageAndImageBase64($base64string, $idusuario, $createWebp = true, $folder = 'image', $randon = '',$create_original = false)
+    public static function createStorageAndImageBase64($base64string, $idusuario, $createWebp = true, $folder = 'image', $randon = '', $create_original = false)
     {
         $_DOMINIO = self::get_dominio_now(true);
+
+        // Verifica si es una url y la retorna
+        if (!empty($base64string) && filter_var($base64string, FILTER_VALIDATE_URL)) {
+            return (object) ['original' => $base64string, 'webp' => $base64string, 'resp' => 'file_is_url'];
+        }
+
         // Verificar si el base64string contiene una coma para dividir
         if (strpos($base64string, ',') === false) {
             return (object) ['original' => '', 'webp' => '', 'resp' => 'file_not_base64'];
@@ -271,17 +277,17 @@ class util
             mkdir($storagePath, 0777, true); // Crear carpeta con permisos de lectura, escritura y ejecución para todos
         }
 
-        $storagePath .= $folder.'/';
+        $storagePath .= $folder . '/';
         if (!file_exists($storagePath)) {
             mkdir($storagePath, 0777, true); // Crear carpeta con permisos de lectura, escritura y ejecución para todos
         }
 
-        $storagePath .= date('Y').'/';
+        $storagePath .= date('Y') . '/';
         if (!file_exists($storagePath)) {
             mkdir($storagePath, 0777, true); // Crear carpeta con permisos de lectura, escritura y ejecución para todos
         }
 
-        $storagePath .= date('m').'/';
+        $storagePath .= date('m') . '/';
         if (!file_exists($storagePath)) {
             mkdir($storagePath, 0777, true); // Crear carpeta con permisos de lectura, escritura y ejecución para todos
         }
@@ -331,13 +337,13 @@ class util
                     $imagen_redimensionada = imagecreatetruecolor($nuevo_ancho, $nuevo_alto);
                     imagecopyresampled($imagen_redimensionada, $image, 0, 0, 0, 0, $nuevo_ancho, $nuevo_alto, $ancho_original, $alto_original);
 
-                    $storagePathWebp = $storagePath.'webp/';
+                    $storagePathWebp = $storagePath . 'webp/';
                     if (!file_exists($storagePathWebp)) {
                         mkdir($storagePathWebp, 0777, true); // Crear carpeta con permisos de lectura, escritura y ejecución para todos
                     }
 
                     // Guardar la imagen redimensionada en formato WebP
-                    $webpFilePath = $storagePathWebp.$randon.'_'.$idusuario.'_'.date('Ymd').'.webp';
+                    $webpFilePath = $storagePathWebp . $randon . '_' . $idusuario . '_' . date('Ymd') . '.webp';
                     imagewebp($imagen_redimensionada, $webpFilePath);
 
                     // Liberar memoria
@@ -349,23 +355,22 @@ class util
                 }
             }
 
-            
 
-            if ($create_original){
-                $storagePathOrig = $storagePath.'original/';
+
+            if ($create_original) {
+                $storagePathOrig = $storagePath . 'original/';
                 if (!file_exists($storagePathOrig)) {
                     mkdir($storagePathOrig, 0777, true); // Crear carpeta con permisos de lectura, escritura y ejecución para todos
                 }
                 // Definimos el nombre del archivo y la ruta donde será guardado
-                $fileName = $idusuario.'_'.date('Ymd').$extension;
-                $filePath = $storagePathOrig.$fileName;
+                $fileName = $idusuario . '_' . date('Ymd') . $extension;
+                $filePath = $storagePathOrig . $fileName;
 
                 // Intentamos guardar el archivo en el servidor
                 file_put_contents($filePath, $fileContents);
+            }
 
-            } 
-
-            return (object) ['original' => $create_original ?? $_DOMINIO.'/'.$filePath, 'webp' => $_DOMINIO.'/'.$webpFilePath, 'resp' => 'add_file_create'];
+            return (object) ['original' => $create_original ?? $_DOMINIO . '/' . $filePath, 'webp' => $_DOMINIO . '/' . $webpFilePath, 'resp' => 'add_file_create'];
         }
 
         // Si hubo algún error, retornar NULL
@@ -379,7 +384,8 @@ class util
      *
      * @return object JSON con el token CSRF.
      */
-    private function generateToken() {
+    private function generateToken()
+    {
         $token = bin2hex(random_bytes(32));
         $data = [
             'csrf_token' => $token,
@@ -396,9 +402,10 @@ class util
      * @param string $token El token CSRF a verificar.
      * @return object JSON con el estado de la verificación.
      */
-    public function verifyToken($token) {
+    public function verifyToken($token)
+    {
         if (!$token) return (object)['resp' => 'requiere_param'];
-        
+
         if (!file_exists($this->filePath)) return (object)(['resp' => 'error', 'message' => 'Token no encontrado']);
         $data = json_decode(file_get_contents($this->filePath), true);
 
@@ -413,7 +420,8 @@ class util
      *
      * @return object JSON con el token CSRF o mensaje de error.
      */
-    public function getToken() {
+    public function getToken()
+    {
         if (!file_exists($this->filePath)) {
             return $this->generateToken();
         }
@@ -430,10 +438,11 @@ class util
     }
 
 
-    public static function sumarHoras($fecha, $horas, $zonaHoraria = 'America/Lima') {
+    public static function sumarHoras($fecha, $horas, $zonaHoraria = 'America/Lima')
+    {
         // Intentamos crear un objeto DateTime desde la cadena de fecha y hora
         $nuevaFecha = DateTime::createFromFormat('Y-m-d H:i:s', $fecha, new DateTimeZone($zonaHoraria));
-    
+
         // Si falla, intentamos crear un objeto DateTime desde la cadena de fecha
         if ($nuevaFecha === false) {
             $nuevaFecha = DateTime::createFromFormat('Y-m-d', $fecha, new DateTimeZone($zonaHoraria));
@@ -444,11 +453,11 @@ class util
             // Establecemos la hora a medianoche
             $nuevaFecha->setTime((int)date('H'), (int)date('i'), (int)date('s'));
         }
-    
+
         // Sumamos las horas
         $nuevaFecha->modify("+$horas hours");
         $fechaformt = $nuevaFecha->format('Y-m-d H:i:s');
-    
+
         // Devolvemos la nueva fecha formateada
         return (string) $fechaformt;
     }
@@ -459,7 +468,8 @@ class util
      * @param int $length Longitud de la sal en bytes (por defecto 16)
      * @return string Sal generada en formato hexadecimal
      */
-    public function generateSalt($length = 16) {
+    public function generateSalt($length = 16)
+    {
         return bin2hex(random_bytes($length));
     }
 
@@ -470,28 +480,30 @@ class util
      * @param string $salt Sal para usar en la derivación
      * @return string Clave derivada
      */
-    public function deriveKey($password, $salt) {
+    public function deriveKey($password, $salt)
+    {
         return hash_pbkdf2("sha256", $password, $salt, 10000, 32);
     }
-    
+
     /**
      * Encripta un texto usando AES-256-CBC con una sal aleatoria y HMAC.
      *
      * @param string $text Texto a encriptar
      * @return string Texto encriptado en formato base64
      */
-    public function encrypt($text) {
+    public function encrypt($text)
+    {
         $salt = self::generateSalt();
         $key = self::deriveKey(self::SECRET_IV, $salt);
         $iv = openssl_random_pseudo_bytes(16);
-        
+
         $encrypted = openssl_encrypt($text, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv);
         $hmac = hash_hmac('sha256', $encrypted, $key, true);
-        
+
         $result = $salt . $iv . $hmac . $encrypted;
         return base64_encode($result);
     }
-    
+
     /**
      * Desencripta un texto previamente encriptado con el método encrypt().
      *
@@ -499,30 +511,29 @@ class util
      * @return string Texto desencriptado
      * @throws Exception Si la verificación HMAC falla o si la desencriptación falla
      */
-    public function decrypt($encryptedText) {
+    public function decrypt($encryptedText)
+    {
         $decoded = base64_decode($encryptedText);
-        
+
         $salt = substr($decoded, 0, 32);
         $iv = substr($decoded, 32, 16);
         $hmac = substr($decoded, 48, 32);
         $encrypted = substr($decoded, 80);
-        
+
         $key = self::deriveKey(self::SECRET_IV, $salt);
-        
+
         $calculatedHmac = hash_hmac('sha256', $encrypted, $key, true);
         if (!hash_equals($hmac, $calculatedHmac)) {
             throw new Exception("HMAC verification failed");
         }
-        
+
         $decrypted = openssl_decrypt($encrypted, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv);
         if ($decrypted === false) {
             throw new Exception("Decryption failed");
         }
-        
+
         return $decrypted;
     }
-
-
 }
 
 $util = new util((object) $_REQUEST);
