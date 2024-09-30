@@ -60,4 +60,4 @@ var USER_PLAY = '';
 var PASS_PLAY = '';
 ```
 
-Nota: Ej => `gogo/v2/config/documentation/key.example.js`
+Nota: Ej => `v2/config/documentation/key.example.js`
