@@ -6,3 +6,6 @@ v2/config/cache
 *.log
 v2/config/init.php
 key.js
+.htaccess
+index.php
+NewUrl.php
