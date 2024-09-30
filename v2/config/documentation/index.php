@@ -1,6 +1,13 @@
 <?php
+require_once '../util.model.php';
 
-function generateApiDocs() {
+function generateApiDocs($token) {
+    global $util;
+
+    if ($util->verifyToken($token)->resp !== 'success') {
+        return (object) ['resp' => 403, 'msj' => "Invalid token token or token file not found."];
+    }
+
     $modulesPath = __DIR__ . '/../../module';
     $cachePath = __DIR__ . '/../cache';
     $modules = scandir($modulesPath);
@@ -59,5 +66,5 @@ function generateApiDocs() {
     file_put_contents(__DIR__ . '/../../module/api_documentation.md', $documentation);
     return (object) ['resp'=>200, 'msj'=>"Documentation generated successfully."];
 }
-
-echo json_encode(generateApiDocs());
+$token = isset($_GET['token']) ? $_GET['token'] : null;
+echo json_encode(generateApiDocs($token));

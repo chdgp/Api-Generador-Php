@@ -5,11 +5,11 @@ class util
 {
     public const SECRET_IV = 'B6Po)&dha%$#%$#hus]3wgv8';
     public const METHOD = 'AES-256-CBC';
-    private $filePath = 'csrf_token.json';
+    private $filePath = __DIR__.'/csrf_token.json';
 
     public function __construct($request = null)
     {
-        if ($request !== null) {
+        if ($request !== null && property_exists($request,'mode')) {
             switch ($request->mode) {
                 case 'encode':
                     echo json_encode($this->encodeToken($request));
