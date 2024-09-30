@@ -17,8 +17,6 @@ $dbconect['USER_PROD'];// => Usuario Base de datos MySql
 $dbconect['HOST_PROD'];// => Servidor ip o localhost
 ```
 
-`Recomendacion`: Colocar el nombre de la carpeta 
-
 ---
 ---
 
