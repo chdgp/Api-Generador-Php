@@ -1,6 +1,35 @@
 <?php
 require_once '../util.model.php';
 
+
+function extractModesFromSwitch($filePath, $className) {
+    $modes = [];
+    $content = file_get_contents($filePath);
+    $pattern = "/public\s+function\s+switch_{$className}\s*\(\s*\\\$request\s*\)\s*\{(.*?)\}\s*(?:public|private|protected|$)/s";
+    
+    if (preg_match($pattern, $content, $matches)) {
+        $switchBody = $matches[1];
+        
+        // Check for match structure
+        if (strpos($switchBody, 'match') !== false) {
+            $matchPattern = "/['\"](.*?)['\"]\s*=>/";
+            preg_match_all($matchPattern, $switchBody, $matchModes);
+            $modes = $matchModes[1];
+
+        } 
+        // Check for switch structure
+        else if (strpos($switchBody, 'switch') !== false) {
+            $casePattern = "/case\s+['\"](.+?)['\"]\s*:/";
+            
+            preg_match_all($casePattern, $switchBody, $caseModes);
+            $modes = $caseModes[1];
+
+        }
+    }
+    return $modes;
+}
+
+
 function generateApiDocs($token) {
     global $util;
 
@@ -17,26 +46,36 @@ function generateApiDocs($token) {
         if ($module === '.' || $module === '..') continue;
 
         $controllerPath = $modulesPath . '/' . $module . '/controller';
-        if (!is_dir($controllerPath)) continue;
+        $modelPath = $modulesPath . '/' . $module . '/model';
+        if (!is_dir($controllerPath)|| !is_dir($modelPath)) continue;
 
         $controllers = scandir($controllerPath);
         foreach ($controllers as $controller) {
             if (pathinfo($controller, PATHINFO_EXTENSION) !== 'php') continue;
 
+           
             $controllerName = pathinfo($controller, PATHINFO_FILENAME);
             $endpoint = str_replace('.controller', '', $controllerName);
+            $modelFile = $modelPath . '/' . $endpoint . '.model.php';
+            if (!file_exists($modelFile))continue;
 
             //$documentation .= "## {$endpoint}\n\n";
             $documentation .= "<details><summary>{$endpoint}</summary>\n\n";
-            $documentation .= "**POST:** ` /{$endpoint}/controller/{$endpoint}.controller.php`\n\n";
+            $documentation .= "**POST:** ` module/{$module}/controller/{$endpoint}.controller.php`\n\n";
             $documentation .= "**Parameters (Body):**\n\n";
             
-            $modes = ['select', 'insert', 'update', 'delete', 'describe'];
+            // Extract modes from the model file
+            $modes_scan = extractModesFromSwitch($modelFile, $endpoint);
+            $modes_default = ["select_{$endpoint}", "insert_{$endpoint}", "update_{$endpoint}", "delete_{$endpoint}", "describe_{$endpoint}"]; // Fallback to default modes
+            $arratemp = array_merge($modes_scan, $modes_default);
+            $modes = array_unique($arratemp );
+
             $documentation .= "```json\n{\n";
             foreach ($modes as $index => $mode) {
-                $documentation .= "   \"mode\": \"{$mode}_{$endpoint}\"" . ($index < count($modes) - 1 ? "," : "") ."\n";
+                $documentation .= "   \"mode\": \"{$mode}\"" . ($index < count($modes) - 1 ? "," : "") ."\n";
             }
             $documentation .= "}\n```\n\n";
+
             // Read and include the JSON description file
             $jsonFile = "{$cachePath}/{$endpoint}_description.json";
             if (file_exists($jsonFile)) {
