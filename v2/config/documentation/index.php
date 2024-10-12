@@ -5,8 +5,8 @@ require_once '../util.model.php';
 function extractModesFromSwitch($filePath, $className) {
     $modes = [];
     $content = file_get_contents($filePath);
-    $pattern = "/public\s+function\s+switch_{$className}\s*\(\s*\\\$request\s*\)\s*\{(.*?)\}\s*(?:public|private|protected|$)/s";
-    
+    //$pattern = "/public\s+function\s+switch_{$className}\s*\(\s*\\\$request\s*\)\s*\{(.*?)\}\s*(?:public|private|protected|$)/s";
+    $pattern = "/public\s+function\s+switch_{$className}\s*\(/s";
     if (preg_match($pattern, $content, $matches)) {
         $switchBody = $matches[1];
         
