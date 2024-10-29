@@ -428,7 +428,7 @@ class MySQLTable extends MySQLPdo
             $squemas[] = $table_description;
 
             // Genera un alias basado en el nombre de la tabla
-            if ($alias_activar || !is_null($customJoins)) {
+            if ($alias_activar) {
                 $alias = substr($table, 0, 1).rand(100, 999); // Puedes personalizar esto de acuerdo a tus necesidades
             } else {
                 $alias = '';
