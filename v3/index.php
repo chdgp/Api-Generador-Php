@@ -1,5 +1,5 @@
 <?php
-require('config/Mysql/TableManager.php');
+require('config/Database/TableManager.php');
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -67,7 +67,7 @@ require('config/Mysql/TableManager.php');
 <body>
     <div class="container">
         <h1>Crear API en PHP en una Carpeta</h1>
-        <form method="POST" action="config\Module\ModuleGenerator.php">
+        <form method="POST" action="config\Generator\ModuleGenerator.php">
             <label for="tabla">Seleccione la tabla:</label>
             <select id="tabla" name="tabla">
                 <?= DatabaseConnection::getTablesDB(); ?>

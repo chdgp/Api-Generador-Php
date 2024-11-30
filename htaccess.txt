@@ -8,8 +8,11 @@ RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^v2/module/([^/]+)/controller/([^/]+)$ v2/module/$1/controller/$2.php [L]
+RewriteRule ^v3/module/([^/]+)/controller/([^/]+)$ v3/module/$1/controller/$2.php [L]
+
 # Bloquear el acceso a todo en la carpeta cache
 RewriteRule ^v2/config/cache/.* - [F,L]
+RewriteRule ^v3/config/Cache/.* - [F,L]
 
 # Bloquear acceso a directorios .git en la raíz y en subdirectorios fuera de /module/
 RedirectMatch 404 /\.git
