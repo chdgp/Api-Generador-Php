@@ -38,8 +38,7 @@
         <th>Progress</th>
     </tr>
     <?php
-    include 'config.init.php';
-    include 'mysql.pdo.php';
+    require_once(__DIR__ . "/../Database/DatabaseConnection.php");
     try {
         // Conectar a la base de datos
         $pdo = DatabaseConnection::getPDO();
