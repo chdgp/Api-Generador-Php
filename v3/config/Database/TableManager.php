@@ -2,16 +2,16 @@
 
 require_once(__DIR__ . "/../Database/DatabaseConnection.php");
 require_once(__DIR__ . "/../Security/SecurityUtil.php");
+require_once(__DIR__ . "/DatabaseMiddleware.php");
 
 /**
  * MySQL table management and query builder class
  */
 class TableManager extends DatabaseConnection
 {
-    private ?PDO $db = null;
     private float $time;
-    private bool $describe_force;
-    private array $tableCache = [];
+    private static $tableCache = [];
+    private DatabaseMiddleware $middleware;
     private const CACHE_DIR = __DIR__ . '/../Cache';
     private const CACHE_DURATION = 3600; // 1 hour
 
@@ -19,8 +19,8 @@ class TableManager extends DatabaseConnection
     {
         parent::__construct();
         $this->time = microtime(true);
-        $this->describe_force = false;
         $this->initializeCache();
+        $this->middleware = new DatabaseMiddleware();
     }
 
     /**
@@ -35,20 +35,28 @@ class TableManager extends DatabaseConnection
     }
 
     /**
-     * Combina dos objetos en uno nuevo.
-     *
-     * @param object $obj1 el primer objeto a combinar
-     * @param object $obj2 el segundo objeto a combinar
-     *
-     * @return object el objeto resultante que es la combinación de los dos objetos
+     * Convierte un valor que puede ser array en un valor simple
      */
-    public function combineObjects(object $obj1, object $obj2): object
-    {
-        // Crea un nuevo objeto a partir del arreglo combinado
-        return (object) array_merge((array) $obj1, (array) $obj2);
+    private function normalizeValue($value) {
+        if (is_array($value) && count($value) === 1) {
+            return reset($value);
+        }
+        return $value;
     }
 
-    public static function objectToArray($obj): array
+    /**
+     * Normaliza un array de datos, convirtiendo arrays de un solo elemento en valores simples
+     */
+    private function normalizeData($data) {
+        $normalized = [];
+        foreach ($data as $key => $value) {
+            $normalized[$key] = $this->normalizeValue($value);
+        }
+        return $normalized;
+    }
+
+
+    private static function objectToArray($obj): array
     {
         if (is_object($obj)) {
             $obj = (array) $obj;
@@ -61,29 +69,13 @@ class TableManager extends DatabaseConnection
         return [$obj];
     }
 
-    public static function allArrayOneArray(array $valid_data): array
+    private static function allArrayOneArray(array $valid_data): array
     {
         return $values = array_map(function ($value) {
             return is_array($value) ? implode(', ', $value) : $value;
         }, array_values($valid_data));
     }
 
-    public function getInsert($datatable_name, $name)
-    {
-        return $datatable_name->insert_data[$name];
-    }
-
-    public function describeTable($table_name)
-    {
-        return $this->getTableDescription($table_name, $this->describe_force);
-
-        // old: no cache function
-        $adb = self::getPDO();
-        $stmt = $adb->prepare("DESCRIBE $table_name");
-        $stmt->execute();
-        $adb = null;
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
 
     /**
      * Get table description with caching
@@ -95,19 +87,19 @@ class TableManager extends DatabaseConnection
     private function getTableDescription(string $tableName, bool $force = false): array
     {
         // Check memory cache first
-        if (!$force && isset($this->tableCache[$tableName])) {
-            return $this->tableCache[$tableName];
+        if (!$force && isset(static::$tableCache[$tableName])) {
+            return static::$tableCache[$tableName];
         }
 
-        $cacheFile = self::CACHE_DIR . "/{$tableName}_description.json";
+        $cacheFile = static::CACHE_DIR . "/{$tableName}_description.json";
 
         // Check file cache if not in memory
         if (!$force && is_file($cacheFile)) {
             $cacheAge = time() - filemtime($cacheFile);
-            if ($cacheAge < self::CACHE_DURATION) {
+            if ($cacheAge < static::CACHE_DURATION) {
                 $cachedData = json_decode(file_get_contents($cacheFile), true);
                 if ($cachedData !== null) {
-                    $this->tableCache[$tableName] = $cachedData;
+                    static::$tableCache[$tableName] = $cachedData;
                     return $cachedData;
                 }
             }
@@ -120,13 +112,13 @@ class TableManager extends DatabaseConnection
 
         try {
             // Get fresh data from database
-            $pdo = self::getPDO();
+            $pdo = static::getPDO();
             $stmt = $pdo->prepare("DESCRIBE `$tableName`");
             $stmt->execute();
             $description = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Save to cache
-            $this->tableCache[$tableName] = $description;
+            static::$tableCache[$tableName] = $description;
             file_put_contents($cacheFile, json_encode($description, JSON_THROW_ON_ERROR));
 
             return $description;
@@ -137,129 +129,201 @@ class TableManager extends DatabaseConnection
         }
     }
 
-    /**
-     * Clear table description cache
-     * @param string|null $tableName
-     * @return void
-     */
-    public function clearCache(?string $tableName = null): void
-    {
-        if ($tableName === null) {
-            $this->tableCache = [];
-            array_map('unlink', glob(self::CACHE_DIR . "/*_description.json"));
-            return;
-        }
 
-        unset($this->tableCache[$tableName]);
-        $cacheFile = self::CACHE_DIR . "/{$tableName}_description.json";
-        if (file_exists($cacheFile)) {
-            unlink($cacheFile);
+    /**
+     * Optimiza la generación de alias de tabla
+     */
+    private function generateTableAlias(string $table): string {
+        return substr($table, 0, 1) . substr(md5($table), 0, 3);
+    }
+
+    private function extractCustomJoinTables(array $customJoins): array {
+        $tables = [];
+        foreach ($customJoins as $join) {
+            if (preg_match('/\bJOIN\s+(\w+)\b/i', $join, $matches)) {
+                $tables[] = $matches[1];
+            }
         }
+        return $tables;
     }
 
     /**
-     * Realiza una consulta SELECT en la tabla de la base de datos.
-     *
-     * @param string $table_name el nombre de la tabla a consultar
-     * @param array  $data       un arreglo asociativo con los campos y valores de filtro
-     * 
-     *
-     * @return array|object un arreglo de resultados de la consulta
+     * Procesa las condiciones WHERE de manera optimizada
      */
-    public function selectAll($table_name, $data = [])
-    {
+    private function processWhereConditions(array $tables, array $data, bool $alias_activar, array $table_aliases, ?array $customJoins = null): array {
+        $where_conditions = [];
+        $values = [];
+        
+        // Agregar tablas de custom joins
+        if ($customJoins !== null) {
+            $joinTables = $this->extractCustomJoinTables($customJoins);
+            $tables = array_merge($tables, $joinTables);
+        }
+    
+        // Procesar cada tabla
+        foreach ($tables as $table) {
+            $table_description = $this->getTableDescription($table);
+            $table_fields = array_column($table_description, 'Field');
+            $table_prefix = $alias_activar ? "{$table_aliases[$table]}." : "$table.";
+    
+            foreach ($data as $key => $value) {
+                if (in_array($key, $table_fields) && $value !== null && $value !== '') {
+                    $where_conditions[] = "$table_prefix$key = ?";
+                    $values[] = $value;
+                }
+            }
+        }
+    
+        return ['conditions' => $where_conditions, 'values' => $values];
+    }
+
+    /**
+     * Realiza una consulta SELECT en una o varias tablas de la base de datos.
+     *
+     * @param array        $tables       las tablas de las que se seleccionarán los datos
+     * @param array|object $data         los datos para filtrar la consulta
+     * @param array        $filter       filtros adicionales para la consulta
+     * @param array        $customJoins  joins personalizados para la consulta
+     * @param array|null   $subquery     subconsultas para incluir
+     * @param array        $fieldper     campos permitidos en la consulta
+     * @param bool         $alias_activar si se deben usar alias en la consulta
+     * @param int|null     $limit        límite de resultados
+     * @param array|null   $orden        orden de los resultados
+     *
+     * @return object resultado de la consulta
+     */
+    public function selectAllTables(
+        array $tables,
+        $data = null,
+        $filter = [],
+        $customJoins = [],
+        $subquery = null,
+        $fieldper = [],
+        $alias_activar = true,
+        $limit = null,
+        $orden = null
+    ) {
         $adb = self::getPDO();
         $obj = (object) [];
-        $valid_fields =[];
-        $data = self::objectToArray($data);
 
-        // Obtener la descripción de la tabla
-        $table_description = $this->describeTable($table_name);
-
-        // Obtener los campos válidos del arreglo $data
-        $valid_data = array_intersect_key($data, array_flip(array_column($table_description, 'Field')));
-
-        if (empty($valid_data)) {
-            // Si no hay campos válidos en $data, seleccionar todos los campos
-            $valid_field_list = '*';
-        } else {
-            // Construir la lista de campos válidos para la consulta
-            $valid_field_list = '*'; // implode(', ', array_keys($valid_data));
+        // Normalizar datos
+        if ($data !== null) {
+            $data = self::objectToArray($data);
+            $data = $this->normalizeData($data);
         }
 
-        // Construir la cláusula WHERE basada en los valores de $valid_data
-        $where_clause = '';
-        $where_values = [];
+        if ($filter !== null) {
+            $filter = self::objectToArray($filter);
+            $filter = $this->normalizeData($filter);
+        }
 
-        foreach ($valid_data as $key => $value) {
-            if ($where_clause !== '') {
-                $where_clause .= ' AND ';
+        // Validar los datos
+        if ($data !== null) {
+            foreach ($tables as $table) {
+                if (!$this->middleware->validate($table, $data, 'select')) {
+                    return (object) [
+                        'msj' => 'Error de validación en la tabla ' . $table,
+                        'errors' => $this->middleware->getErrors(),
+                        'resp' => 'err'
+                    ];
+                }
             }
-            $where_clause .= "$key = ?";
-            $where_values[] = $value;
         }
 
-        // Construir la consulta SQL
-        $query = "SELECT $valid_field_list FROM $table_name";
-        if (!empty($where_clause)) {
-            $query .= " WHERE $where_clause";
+        // Construir consulta SQL
+        $sql = "SELECT " . (!empty($fieldper) ? implode(", ", $fieldper) : "*");
+        $values = [];
+        $where_conditions = [];
+
+        // Generar alias de tablas
+        $firstTable = reset($tables);
+        $table_aliases = [];
+        if ($alias_activar) {
+            foreach ($tables as $table) {
+                $table_aliases[$table] = $this->generateTableAlias($table);
+            }
         }
 
-        $stmt = $adb->prepare($query);
-        $stmt->execute($where_values);
-        $obj->row = $stmt->fetchAll(PDO::FETCH_OBJ);
-        $obj->resp = ($obj->count = $stmt->rowCount()) ? 'select' : 'no_data';
-        $obj->TIME_SECOND = SecurityUtil::timeSecond($this->time);
-        $adb = null;
+        // Agregar FROM y JOINs
+        $sql .= " FROM $firstTable" . ($alias_activar ? " AS {$table_aliases[$firstTable]}" : "");
+        
+        foreach ($tables as $table) {
+            if ($table !== $firstTable) {
+                $sql .= " NATURAL JOIN $table" . 
+                       ($alias_activar ? " AS {$table_aliases[$table]}" : "");
+            }
+        }
 
-        return $obj;
-    }
+        // Agregar joins personalizados
+        if ($customJoins !== null) {
+            $sql .= " " . implode(" ", $customJoins);
+        }
 
-    /**
-     * Select query with prepared statements
-     * @param string $table_name
-     * @param array $data
-     * @param array $options
-     * @return object
-     * @throws PDOException
-     */
-    public function select(string $table_name, array $data = [], array $options = []): object
-    {
+        // Procesar WHERE
+        if ($data !== null) {
+            $whereResult = $this->processWhereConditions($tables, $data, $alias_activar, $table_aliases, $customJoins);
+            $where_conditions = array_merge($where_conditions, $whereResult['conditions']);
+            $values = array_merge($values, $whereResult['values']);
+        }
+
+        // Agregar filtros adicionales
+        if ($filter !== null) {
+            foreach ($filter as $condition) {
+                if (isset($condition['field'], $condition['value'])) {
+                    $operator = $condition['operator'] ?? '=';
+                    $where_conditions[] = "{$condition['field']} $operator ?";
+                    $values[] = $condition['value'];
+                }
+            }
+        }
+
+        // Agregar subconsultas
+        if ($subquery !== null) {
+            $where_conditions = array_merge($where_conditions, $subquery);
+        }
+
+        // Finalizar consulta
+        if (!empty($where_conditions)) {
+            $sql .= " WHERE " . implode(" AND ", $where_conditions);
+        }
+        if ($orden !== null) {
+            $sql .= " ORDER BY " . implode(", ", $orden);
+        }
+        if ($limit !== null) {
+            $sql .= " LIMIT " . intval($limit);
+        }
+
         try {
-            // Get table description
-            $table_description = $this->describeTable($table_name);
+            $stmt = $adb->prepare($sql);
+            $stmt->execute($values);
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Get valid fields from data array
-            $valid_data = array_intersect_key($data, array_flip(array_column($table_description, 'Field')));
-
-            // Build query
-            $where_conditions = [];
-            $params = [];
-            foreach ($valid_data as $key => $value) {
-                $where_conditions[] = "`$key` = :$key";
-                $params[":$key"] = $value;
+            if (ConfigurationManager::isDebugMode()) {
+                $obj->debug = (object) [
+                    'sql' => $sql,
+                    'values' => $values,
+                    'result_count' => count($result)
+                ];
             }
 
-            $where_clause = !empty($where_conditions) ? " WHERE " . implode(" AND ", $where_conditions) : "";
-            $limit_clause = isset($options['limit']) ? " LIMIT " . (int)$options['limit'] : "";
-            $order_clause = isset($options['order']) ? " ORDER BY " . $options['order'] : "";
+            $obj->data = $result;
+            $obj->resp = !empty($result) ? 'ok' : 'empty';
+            $obj->TIME_SECOND = SecurityUtil::timeSecond($this->time);
 
-            $query = "SELECT * FROM `$table_name`" . $where_clause . $order_clause . $limit_clause;
-
-            // Execute query
-            $pdo = self::getPDO();
-            $stmt = $pdo->prepare($query);
-            $stmt->execute($params);
-
-            return (object)[
-                'data' => $stmt->fetchAll(PDO::FETCH_ASSOC),
-                'count' => $stmt->rowCount(),
-                'query' => $query,
-                'params' => $params
-            ];
         } catch (PDOException $e) {
-            throw new PDOException("Select query failed: " . $e->getMessage(), (int)$e->getCode());
+            $obj->msj = "Error en la consulta: " . $e->getMessage();
+            $obj->resp = 'err';
+            if (ConfigurationManager::isDebugMode()) {
+                $obj->debug = (object) [
+                    'sql' => $sql,
+                    'values' => $values,
+                    'error' => $e->getMessage()
+                ];
+            }
         }
+
+        $adb = null;
+        return $obj;
     }
 
     /**
@@ -275,9 +339,10 @@ class TableManager extends DatabaseConnection
         $adb = self::getPDO();
         $obj = (object) [];
         $data = self::objectToArray($data);
+        $data = $this->normalizeData($data);  // Normalizar los datos
 
         // Obtener la descripción de la tabla
-        $table_description = $this->describeTable($table_name);
+        $table_description = $this->getTableDescription($table_name);
 
         // Filtrar los campos de $data para asegurarse de que sean válidos y no sean NULL,
         // y que no sean claves primarias o autoincrementables
@@ -297,6 +362,7 @@ class TableManager extends DatabaseConnection
             if (
                 $column['Null'] == 'NO'
                 && $column['Type'] == 'datetime'
+                && !isset($valid_data[$key])
             ) {
                 $valid_data[$key] = date('Y-m-d H:i:s');
             }
@@ -304,6 +370,15 @@ class TableManager extends DatabaseConnection
 
         if (empty($valid_data)) {
             return (object) ['msj' => 'No se proporcionaron campos válidos para la inserción', 'resp' => 'err'];
+        }
+
+        // Validar los datos usando el middleware
+        if (!$this->middleware->validate($table_name, $valid_data, 'insert')) {
+            return (object) [
+                'msj' => 'Error de validación',
+                'errors' => $this->middleware->getErrors(),
+                'resp' => 'err'
+            ];
         }
 
         // Construir la cláusula de inserción
@@ -337,6 +412,7 @@ class TableManager extends DatabaseConnection
                 'valid_data' => $valid_data, 
                 'resp' => 'err'
             ];
+            return $obj;
         }
 
         $newname = 'id'.$table_name;
@@ -344,13 +420,12 @@ class TableManager extends DatabaseConnection
         $obj->resp = ($obj->insert_data[$newname]) ? 'add' : 'err';
         $obj->TIME_SECOND = SecurityUtil::timeSecond($this->time);
         $adb = null;
-       # echo '<pre>'; print_r($values);die;
 
         return $obj;
     }
 
     /**
-     * Realiza una actualización de datos en la tabla de la base de datos.
+     * Actualiza registros en una tabla de la base de datos.
      *
      * @param string $table_name el nombre de la tabla en la que actualizar los datos
      * @param array  $data       un arreglo asociativo con los datos a actualizar
@@ -358,15 +433,27 @@ class TableManager extends DatabaseConnection
      *
      * @return array|object el número de filas afectadas por la actualización o false si falla
      */
-    public function update($table_name, $data, $where)
+    public function update($table_name, $data, $where = null)
     {
         $adb = self::getPDO();
         $obj = (object) [];
         $data = self::objectToArray($data);
-        $where_values = [];
+        $data = $this->normalizeData($data);  // Normalizar los datos
+        if ($where !== null) {
+            $where = self::objectToArray($where);
+            $where = $this->normalizeData($where);  // Normalizar where
+        }
+        // Validar los datos usando el middleware
+        if (!$this->middleware->validate($table_name, $data, 'update')) {
+            return (object) [
+                'msj' => 'Error de validación',
+                'errors' => $this->middleware->getErrors(),
+                'resp' => 'err'
+            ];
+        }
 
         // Obtener la descripción de la tabla
-        $table_description = $this->describeTable($table_name);
+        $table_description = $this->getTableDescription($table_name);
 
         // Filtrar los campos de $data para asegurarse de que sean válidos y no sean NULL,
         // y que no sean claves primarias o autoincrementables
@@ -398,10 +485,10 @@ class TableManager extends DatabaseConnection
 
         // Construir la cláusula WHERE basada en el arreglo $where
         $where_conditions = [];
-        foreach ($where as $field => $value) {
+        foreach ($where as $key => $value) {
             foreach ($table_description as $column) {
-                if ($column['Field'] == $field) {
-                    $where_conditions[] = "$field = ?";
+                if ($column['Field'] == $key) {
+                    $where_conditions[] = "$key = ?";
                     $where_values[] = $value;
                     break;
                 }
@@ -447,23 +534,35 @@ class TableManager extends DatabaseConnection
     }
 
     /**
-     * Realiza una eliminación de registros en la tabla de la base de datos.
+     * Elimina registros de una tabla de la base de datos.
      *
      * @param string $table_name el nombre de la tabla en la que realizar la eliminación
-     * @param array  $where      un arreglo asociativo con los criterios de eliminación
+     * @param array  $data       un arreglo asociativo con los criterios de eliminación
      *
      * @return array|object el número de filas afectadas por la eliminación o false si falla
      */
-    public function delete($table_name, $where)
+    public function delete($table_name, $data)
     {
         $adb = self::getPDO();
         $obj = (object) [];
+        $data = self::objectToArray($data);
+        $data = $this->normalizeData($data);  // Normalizar los datos
+
+        // Validar los datos usando el middleware
+        if (!$this->middleware->validate($table_name, $data, 'delete')) {
+            return (object) [
+                'msj' => 'Error de validación',
+                'errors' => $this->middleware->getErrors(),
+                'resp' => 'err'
+            ];
+        }
+
         // Obtener la descripción de la tabla
-        $table_description = $this->describeTable($table_name);
+        $table_description = $this->getTableDescription($table_name);
 
         // Verificar que el campo en la condición de borrado sea un campo que contenga "id"
         $valid_where = [];
-        foreach ($where as $key => $value) {
+        foreach ($data as $key => $value) {
             foreach ($table_description as $column) {
                 if ($column['Field'] == $key && stripos($key, 'id') !== false) {
                     $valid_where[$key] = $value;
@@ -492,165 +591,87 @@ class TableManager extends DatabaseConnection
     }
 
     /**
-     * Realiza una consulta SQL para seleccionar datos de múltiples tablas con NATURAL JOIN, filtros dinámicos y joins personalizados.
-     *
-     * @param array  $tables      un array de nombres de tablas que se incluirán en la consulta
-     * @param array  $data        un array asociativo de campos y valores para aplicar filtros dinámicos (opcional)
-     * @param string $filter      un filtro adicional personalizado en forma de cadena SQL (opcional)
-     * @param string $customJoins un filtro adicional personalizado para agregar joins a la consulta (opcional)
-     * @param string $subquery    un filtro basado en la consulta principal (opcional)
-     * @param array  $fieldper    pasar valores a consultar en caso contrario obtienes todos los campos (opcional)
-     *
-     * @return object un objeto que contiene la información de la consulta, incluyendo las tablas, datos, filtro, consulta SQL y los resultados
+     * Set validation rules for a table
+     * @param string $table Table name
+     * @param array $rules Validation rules
+     * @return void
      */
-    public function selectAllTables($tables, $data = [], $filter = null, $customJoins = null, $subquery = null, $fieldper = [], $alias_activar = true, $limit = null, $orden = null)
+    public function setValidationRules(string $table, array $rules): void
     {
-        $adb = self::getPDO();
-        $obj = (object) [];
+        $this->middleware->addRules($table, $rules);
+    }
 
-        $joins = [];
-        $where_clause = '';
-        $where_values = [];
-        $subquery_clause = '';
-        $subquery_begin = '';
-        $data = self::objectToArray($data);
+    /**
+     * Set custom validation messages
+     * @param array $messages Custom validation messages
+     * @return void
+     */
+    public function setValidationMessages(array $messages): void
+    {
+        $this->middleware->setMessages($messages);
+    }
 
-        foreach ($tables as $table) {
-            $table_description = $this->describeTable($table);
-            $squemas[] = $table_description;
+    /*
+     * ==========================================
+     * DEPRECATED METHODS - Will be removed in future versions
+     * ==========================================
+     */
 
-            // Genera un alias basado en el nombre de la tabla
-            if ($alias_activar) {
-                $alias = substr($table, 0, 1).rand(100, 999); // Puedes personalizar esto de acuerdo a tus necesidades
-            } else {
-                $alias = '';
-            }
+    /**
+     * @deprecated This method is deprecated and will be removed in future versions.
+     * Use array_merge() instead.
+     */
+    public function combineObjects(object $obj1, object $obj2): object
+    {
+        trigger_error('Method ' . __METHOD__ . ' is deprecated', E_USER_DEPRECATED);
+        return (object) array_merge((array) $obj1, (array) $obj2);
+    }
 
-            $aliases[$table] = $alias;
+    /**
+     * @deprecated This method is deprecated and will be removed in future versions.
+     * Use direct array access instead.
+     */
+    public function getInsert($datatable_name, $name)
+    {
+        trigger_error('Method ' . __METHOD__ . ' is deprecated', E_USER_DEPRECATED);
+        return $datatable_name->insert_data[$name];
+    }
 
-            if (!empty($data)) {
-                // Verifica si se proporcionan campos en data y construye el filtro dinámico
-                foreach ($data as $field => $value) {
-                    if (in_array($field, array_column($table_description, 'Field'))) {
-                        if (!empty($where_clause)) {
-                            $where_clause .= ' AND ';
-                        }
-
-                        $where_clause .= ($alias != '') ? "$alias.$field = ?" : "$field = ?";
-                        $where_values[] = $value;
-                    }
-                }
-            }
-        }
-
-        // Construir NATURAL JOIN entre todas las tablas
-        $firstTable = reset($tables);
-
-        foreach ($tables as $table) {
-            if ($table !== $firstTable) {
-                // $joins[] = "NATURAL JOIN $table AS {$aliases[$table]}";
-                $joins[] = ($alias != '')
-                ? "NATURAL JOIN $table AS {$aliases[$table]} "
-                : "NATURAL JOIN {$table}";
-            }
-        }
-
-        // Agregar joins personalizados si se proporcionan
-        if (!is_null($customJoins)) {
-            $joins[] = $customJoins;
-        }
-
-        // Aplicar filtro adicional si se proporciona
-        if (!is_null($filter)) {
-            if (!empty($where_clause)) {
-                $where_clause .= ' AND ';
-            }
-            $where_clause .= $filter;
-        }
-
-        if (!is_null($subquery)) {
-            $subquery_clause .= ') as subquery ';
-            $subquery_begin .= 'SELECT * FROM ( ';
-            $subquery_clause .= $subquery;
-            $fieldSelect = ' *, ';
-        }
-
-        if (!empty($fieldper)) {
-            implode(', ', $fieldper);
-            $fieldSelect .= implode(', ', $fieldper);
-        } else {
-            $fieldSelect = ' * ';
-        }
-        $query = ($alias != '')
-        ? "{$subquery_begin} SELECT {$fieldSelect} FROM $firstTable AS {$aliases[$firstTable]} ".implode(' ', $joins).' '
-        : "{$subquery_begin} SELECT {$fieldSelect} FROM $firstTable ".implode(' ', $joins).' ';
-
-        if (!empty($where_clause)) {
-            $query .= " WHERE $where_clause";
-        }
-
-        if (!empty($subquery_clause)) {
-            $query .= $subquery_clause;
-        }
-        
-        if (!is_null($orden)) {
-            $query .= $orden;
-        }
-
-        if (!is_null($limit)) {
-            $query .= " LIMIT {$limit}";
-        }
-        if (!empty($where_values)) {
-            $values = self::allArrayOneArray($where_values);
-        }
-
-        if (ConfigurationManager::isDebugMode()) {
-            $obj->debug['select'] = (object) [
-                'sql' => $query,
-                'tables' => $tables,
-                'filter' => $filter,
-                'customJoins' => $customJoins,
-                'fieldper' => $fieldper,
-                'squemas' => $squemas,
-                'values' => $values,
-            ];
-        }
-
-        // echo '<pre>';print_r($obj);die;
-
+    /**
+     * @deprecated This method is deprecated and will be removed in future versions.
+     * Use selectAllTables() instead with appropriate parameters.
+     */
+    public function select(string $table_name, array $data = [], array $options = []): object
+    {
+        trigger_error('Method ' . __METHOD__ . ' is deprecated. Use selectAllTables() instead', E_USER_DEPRECATED);
         try {
-            // echo '<pre>';print_r($query);die;
-
-            $stmt = $adb->prepare($query);
-            $stmt->execute($values);
-            $obj->count = (int) $stmt->rowCount();
-
-            /* FORCE: TYPE DATO FOR FIELD
-            if ($obj->count > 0)
-            while ($row = $stmt->fetch(PDO::FETCH_OBJ)) {
-                foreach ($row as $col => $val) {
-                    $values[$col] = DatabaseConnection::getValueForType($tables[0], $col, $val);
-                }
-            $obj->row[] = (object)$values;
+            $table_description = $this->getTableDescription($table_name);
+            $valid_data = array_intersect_key($data, array_flip(array_column($table_description, 'Field')));
+            $where_conditions = [];
+            $params = [];
+            foreach ($valid_data as $key => $value) {
+                $where_conditions[] = "`$key` = :$key";
+                $params[":$key"] = $value;
             }
-            */
 
-            if ($obj->count > 0) {
-                $obj->row = $stmt->fetchAll(PDO::FETCH_OBJ);
-            }
-            $obj->resp = ($obj->count) ? 'select' : 'no_data';
-            $obj->TIME_SECOND = SecurityUtil::timeSecond($this->time);
-            // SecurityUtil::debug($obj);
-        } catch (\Throwable $th) {
-            $obj->resp = 'err';
-            $obj->error = $th;
-            // echo '<pre>';print_r($obj);die;
-            echo json_encode($obj);
-            exit;
+            $where_clause = !empty($where_conditions) ? " WHERE " . implode(" AND ", $where_conditions) : "";
+            $limit_clause = isset($options['limit']) ? " LIMIT " . (int)$options['limit'] : "";
+            $order_clause = isset($options['order']) ? " ORDER BY " . $options['order'] : "";
+
+            $query = "SELECT * FROM `$table_name`" . $where_clause . $order_clause . $limit_clause;
+
+            $pdo = self::getPDO();
+            $stmt = $pdo->prepare($query);
+            $stmt->execute($params);
+
+            return (object)[
+                'data' => $stmt->fetchAll(PDO::FETCH_ASSOC),
+                'count' => $stmt->rowCount(),
+                'query' => $query,
+                'params' => $params
+            ];
+        } catch (PDOException $e) {
+            throw new PDOException("Select query failed: " . $e->getMessage(), (int)$e->getCode());
         }
-
-        $adb = null;
-
-        return $obj;
     }
 }
