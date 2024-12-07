@@ -25,6 +25,7 @@ class SecurityUtil {
             'decode' => $this->decodeToken($request),
             'vefToken' => $this->verifyToken($request->token ?? ''),
             'getToken' => $this->getToken(),
+            'verifyRequestToken' => $this->verifyRequestToken(),
             default => null
         };
 
@@ -317,7 +318,8 @@ class SecurityUtil {
         try {
             if (file_exists(self::TOKEN_FILE)) {
                 $tokenData = json_decode(file_get_contents(self::TOKEN_FILE), true);
-                if ($tokenData && $tokenData['expiration'] > time()) {
+                // Agregamos un margen de 30 segundos antes de la expiración para regenerar el token
+                if ($tokenData && ($tokenData['expiration'] - 30) > time()) {
                     return $tokenData;
                 }
             }
@@ -345,17 +347,75 @@ class SecurityUtil {
             }
 
             $tokenData = $this->getToken();
+            // Agregamos un margen de 30 segundos para la validación también
             $isValid = hash_equals($tokenData['token'], $token) && 
-                      $tokenData['expiration'] > time();
+                      ($tokenData['expiration'] - 30) > time();
 
             return [
                 'valid' => $isValid,
-                'message' => $isValid ? 'Token valid' : 'Token invalid or expired'
+                'message' => $isValid ? 'Token valid' : 'Token invalid or expired',
+                'token' => $isValid ? null : $tokenData['token'] // Si el token no es válido, enviamos uno nuevo
             ];
         } catch (Exception $e) {
             return [
                 'valid' => false,
                 'message' => 'Token verification failed'
+            ];
+        }
+    }
+
+    /**
+     * Verify token from request header and authorize request
+     * @return array
+     */
+    public function verifyRequestToken(): array {
+        try {
+            // Obtener headers de forma más eficiente
+            $headers = array_change_key_case(getallheaders(), CASE_UPPER);
+            
+            // Mapeo directo de headers a buscar (en mayúsculas para comparación case-insensitive)
+            $headerMap = [
+                'X-CSRF-TOKEN' => true,
+                'X-TOKEN' => true,
+                'TOKEN' => true,
+                'AUTHORIZATION' => true
+            ];
+
+            // Buscar token de forma eficiente
+            $token = null;
+            $foundHeader = array_intersect_key($headers, $headerMap);
+            
+            if (!empty($foundHeader)) {
+                $token = reset($foundHeader);
+                // Extraer Bearer token si es necesario
+                if (stripos($token, 'Bearer ') === 0) {
+                    $token = substr($token, 7);
+                }
+            }
+
+            // Verificar el token y liberar memoria
+            $verification = $this->verifyToken($token);
+            unset($headers, $headerMap, $foundHeader);
+
+            if (!$verification['valid']) {
+                http_response_code(401);
+                return [
+                    'success' => false,
+                    'message' => $verification['message'],
+                    'newToken' => $verification['token'] ?? null
+                ];
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Request authorized'
+            ];
+            
+        } catch (Exception $e) {
+            http_response_code(500);
+            return [
+                'success' => false,
+                'message' => 'Authorization verification failed'
             ];
         }
     }
