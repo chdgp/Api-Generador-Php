@@ -32,7 +32,7 @@ Api-Generador-Php/
 
 1. Clona el repositorio:
 ```bash
-git clone https://github.com/tu-usuario/Api-Generador-Php.git
+git clone https://github.com/chdgp/Api-Generador-Php.git
 ```
 
 2. Configura tu servidor web para apuntar al directorio del proyecto
