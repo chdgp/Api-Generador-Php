@@ -1,24 +1,26 @@
 <?php
+// Error reporting configuration
+ini_set('display_errors', 'on');
+error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED & ~E_WARNING);
+
 require_once '../Security/SecurityUtil.php';
 
 
 function extractModesFromSwitch($filePath, $className) {
     $modes = [];
     $content = file_get_contents($filePath);
+
     //$pattern = "/public\s+function\s+switch_{$className}\s*\(\s*\\\$request\s*\)\s*\{(.*?)\}\s*(?:public|private|protected|$)/s";
-    $pattern = "/public\s+function\s+switch_{$className}\s*\(/s";
+    $pattern = '/match\s*\(.*?\)\s*\{(.*?)\}/s';
     if (preg_match($pattern, $content, $matches)) {
         $switchBody = $matches[1];
-        
+       
         // Check for match structure
-        if (strpos($switchBody, 'match') !== false) {
-            $matchPattern = "/['\"](.*?)['\"]\s*=>/";
-            preg_match_all($matchPattern, $switchBody, $matchModes);
-            $modes = $matchModes[1];
-
-        } 
+        preg_match_all("/['\"](.*?)['\"]\s*=>/", $switchBody, $matchModes);
+        $modes = $matchModes[1];         
+           
         // Check for switch structure
-        else if (strpos($switchBody, 'switch') !== false) {
+        if (empty($modes) && strpos($switchBody, 'switch') !== false) {
             $casePattern = "/case\s+['\"](.+?)['\"]\s*:/";
             
             preg_match_all($casePattern, $switchBody, $caseModes);
@@ -65,6 +67,7 @@ function generateApiDocs($token) {
             
             // Extract modes from the model file
             $modes_scan = extractModesFromSwitch($modelFile, $endpoint);
+
             $modes_default = ["select_{$endpoint}", "insert_{$endpoint}", "update_{$endpoint}", "delete_{$endpoint}", "describe_{$endpoint}"]; // Fallback to default modes
             $arratemp = array_merge($modes_scan, $modes_default);
             $modes = array_unique($arratemp );

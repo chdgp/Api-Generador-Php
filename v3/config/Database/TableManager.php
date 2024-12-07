@@ -130,6 +130,12 @@ class TableManager extends DatabaseConnection
     }
 
 
+    public function describeEntityNewCache(string $tableName)
+    {
+        return $this->getTableDescription($tableName, true);
+    }
+
+
     /**
      * Optimiza la generación de alias de tabla
      */
