@@ -3,7 +3,7 @@
 ini_set('display_errors', 'on');
 error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED & ~E_WARNING);
 
-require_once '../Security/SecurityUtil.php';
+require_once '../config/Security/SecurityUtil.php';
 
 
 function extractModesFromSwitch($filePath, $className) {
@@ -38,8 +38,8 @@ function generateApiDocs($token) {
     // add seguridad para generar documentacion
     //if ($util->verifyToken($token)['valid'] === false) return (object) ['resp' => 403, 'msj' => "Invalid token token or token file not found."];
 
-    $modulesPath = __DIR__ . '/../../module';
-    $cachePath = __DIR__ . '/../Cache';
+    $modulesPath = __DIR__ . '/../module';
+    $cachePath = __DIR__ . '/config/Cache';
     $modules = scandir($modulesPath);
     $documentation = "# API Documentation\n\n";
 
@@ -104,7 +104,7 @@ function generateApiDocs($token) {
         }
     }
 
-    file_put_contents(__DIR__ . '/../../module/api_documentation.md', $documentation);
+    file_put_contents($modulesPath . '/api_documentation.md', $documentation);
     return (object) ['resp'=>200, 'msj'=>"Documentation generated successfully."];
 }
 $token = isset($_GET['token']) ? $_GET['token'] : null;

@@ -1,7 +1,7 @@
 <?php
 
 class StorageLocal {
-    private const DEFAULT_PERMISSIONS = 0777;
+    private const DEFAULT_PERMISSIONS = 0755;
     private const IMAGE_FORMATS = [
         'image/jpeg' => ['.jpg', IMAGETYPE_JPEG],
         'image/png' => ['.png', IMAGETYPE_PNG],
