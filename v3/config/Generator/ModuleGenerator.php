@@ -106,7 +106,7 @@ if (isset($_POST["tabla"]) && isset($_POST["subcarpeta"]))
         . "      'select_$tabla' => self::_select_$tabla(\$request),\n"
         . "      'delete_$tabla' => self::_delete_$tabla(\$request),\n"
         . "      'table_$tabla'  => self::_table_$tabla(\$request),\n"
-        . "      'describe_$tabla'  => \$this->db->describeEntityNewCache(\$request),\n"
+        . "      'describe_$tabla'  => \$this->db->describeEntityNewCache(__CLASS__),\n"
         . "       default => null,\n"
         . "      };\n"
         . "      if (is_object(\$request->{__CLASS__}) || is_array(\$request->{__CLASS__}) && \$returnjson) {\n"

@@ -8,14 +8,16 @@ if (session_status() === PHP_SESSION_NONE) {
 /**
  * Security and utility class for common operations
  */
-class SecurityUtil {
+class SecurityUtil
+{
     private const SECRET_IV = 'B6Po)&dha%$#%$#hus]3wgv8';
     private const METHOD = 'AES-256-CBC';
     private const CACHE_DIR = __DIR__ . '/Cache';
     private const TOKEN_FILE = self::CACHE_DIR . '/csrf_token.json';
     private const TOKEN_LIFETIME = 3600; // 1 hour
 
-    public function __construct(?object $request = null) {
+    public function __construct(?object $request = null)
+    {
         if ($request === null) {
             return;
         }
@@ -39,7 +41,8 @@ class SecurityUtil {
      * @param array $data
      * @return object
      */
-    public static function arrayToObject(array $data): object {
+    public static function arrayToObject(array $data): object
+    {
         return json_decode(json_encode($data, JSON_THROW_ON_ERROR), false, 512, JSON_THROW_ON_ERROR);
     }
 
@@ -49,10 +52,11 @@ class SecurityUtil {
      * @param string $key
      * @return array
      */
-    public static function createUniqueObjects(array $array, string $key): array {
+    public static function createUniqueObjects(array $array, string $key): array
+    {
         $uniqueValues = array_unique(array_column($array, $key));
         return array_values(array_map(
-            fn($value) => (object)[$key => $value],
+            fn($value) => (object) [$key => $value],
             $uniqueValues
         ));
     }
@@ -63,11 +67,12 @@ class SecurityUtil {
      * @param string $message
      * @throws RuntimeException
      */
-    public static function saveLog(string $prefix, string $message): void {
+    public static function saveLog(string $prefix, string $message): void
+    {
         try {
             $date = new DateTime('now', new DateTimeZone('America/Lima'));
             $logDir = __DIR__ . '/logs';
-            
+
             if (!is_dir($logDir) && !mkdir($logDir, 0755, true)) {
                 throw new RuntimeException("Failed to create log directory");
             }
@@ -100,11 +105,13 @@ class SecurityUtil {
      * @param mixed $value
      * @param int $format 0=print_r, 1=var_dump, 2=json_encode
      */
-    public static function debug(mixed $value, int $format = 0): void {
+    public static function debug(mixed $value, int $format = 0): void
+    {
         if ($format === 2) {
-            echo json_encode($value, 
-                JSON_PRETTY_PRINT | 
-                JSON_UNESCAPED_UNICODE | 
+            echo json_encode(
+                $value,
+                JSON_PRETTY_PRINT |
+                JSON_UNESCAPED_UNICODE |
                 JSON_UNESCAPED_SLASHES
             );
             return;
@@ -124,24 +131,25 @@ class SecurityUtil {
      * @param mixed $data
      * @return object
      */
-    public static function encodeToken($data): object {
+    public static function encodeToken($data): object
+    {
         try {
             $key = hex2bin(hash('sha256', date('Y-m')));
             $iv = substr(hex2bin(hash('sha256', self::SECRET_IV)), 0, 16);
             $output = openssl_encrypt(
-                is_string($data) ? $data : json_encode($data), 
-                self::METHOD, 
-                $key, 
-                OPENSSL_RAW_DATA, 
+                is_string($data) ? $data : json_encode($data),
+                self::METHOD,
+                $key,
+                OPENSSL_RAW_DATA,
                 $iv
             );
-            
-            return (object)[
+
+            return (object) [
                 'output' => base64_encode($output),
                 'resp' => 'success'
             ];
         } catch (Exception $e) {
-            return (object)[
+            return (object) [
                 'mensaje' => 'Error al encode: ' . $e->getMessage(),
                 'resp' => 'err'
             ];
@@ -153,24 +161,25 @@ class SecurityUtil {
      * @param mixed $data
      * @return object
      */
-    public static function decodeToken($data): object {
+    public static function decodeToken($data): object
+    {
         try {
             $key = hex2bin(hash('sha256', date('Y-m')));
             $iv = substr(hex2bin(hash('sha256', self::SECRET_IV)), 0, 16);
             $decrypted = openssl_decrypt(
-                base64_decode(is_string($data) ? $data : json_encode($data)), 
-                self::METHOD, 
-                $key, 
-                OPENSSL_RAW_DATA, 
+                base64_decode(is_string($data) ? $data : json_encode($data)),
+                self::METHOD,
+                $key,
+                OPENSSL_RAW_DATA,
                 $iv
             );
 
-            return (object)[
+            return (object) [
                 'output' => $decrypted,
                 'resp' => 'success'
             ];
         } catch (Exception $e) {
-            return (object)[
+            return (object) [
                 'mensaje' => 'Error al decode: ' . $e->getMessage(),
                 'resp' => 'err'
             ];
@@ -182,7 +191,8 @@ class SecurityUtil {
      * @param string $token
      * @return object
      */
-    public static function getConex(string $token): object {
+    public static function getConex(string $token): object
+    {
         try {
             $decoded = self::decodeToken($token);
             if ($decoded->resp === 'err') {
@@ -190,7 +200,7 @@ class SecurityUtil {
             }
             return $decoded;
         } catch (Exception $e) {
-            return (object)[
+            return (object) [
                 'mensaje' => 'Error getting connection: ' . $e->getMessage(),
                 'resp' => 'err'
             ];
@@ -202,7 +212,8 @@ class SecurityUtil {
      * @param object $data
      * @return object
      */
-    public static function delObj(object $data): object {
+    public static function delObj(object $data): object
+    {
         $newData = clone $data;
         unset($newData->mode, $newData->token);
         return $newData;
@@ -213,7 +224,8 @@ class SecurityUtil {
      * @param float $startTime
      * @return float
      */
-    public static function timeSecond(float $startTime): float {
+    public static function timeSecond(float $startTime): float
+    {
         return microtime(true) - $startTime;
     }
 
@@ -248,8 +260,8 @@ class SecurityUtil {
         foreach ($data as $row) {
             $html .= '<tr>';
             foreach ($columnMap as $th => $columnValue) {
-                $value = is_callable($columnValue) 
-                    ? $columnValue($row) 
+                $value = is_callable($columnValue)
+                    ? $columnValue($row)
                     : $row->$columnValue;
                 $html .= sprintf('<td>%s</td>', htmlspecialchars($value));
             }
@@ -258,7 +270,7 @@ class SecurityUtil {
 
         $html .= '</tbody></table>';
 
-        return (object)['html' => trim($html)];
+        return (object) ['html' => trim($html)];
     }
 
     /**
@@ -266,7 +278,8 @@ class SecurityUtil {
      * @param bool $includePath
      * @return string
      */
-    public static function getCurrentDomain(bool $includePath = false): string {
+    public static function getCurrentDomain(bool $includePath = false): string
+    {
         $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
         $domain = $_SERVER['HTTP_HOST'];
         $baseUrl = "{$protocol}://{$domain}";
@@ -285,10 +298,11 @@ class SecurityUtil {
      * Generate CSRF token with expiration
      * @return array
      */
-    private function generateToken(): array {
+    private function generateToken(): array
+    {
         $token = bin2hex(random_bytes(32));
         $expiration = time() + self::TOKEN_LIFETIME;
-        
+
         return [
             'token' => $token,
             'expiration' => $expiration
@@ -300,7 +314,8 @@ class SecurityUtil {
      * @param array $tokenData
      * @throws RuntimeException
      */
-    private function saveToken(array $tokenData): void {
+    private function saveToken(array $tokenData): void
+    {
         if (!is_dir(self::CACHE_DIR) && !mkdir(self::CACHE_DIR, 0755, true)) {
             throw new RuntimeException("Failed to create cache directory");
         }
@@ -314,7 +329,8 @@ class SecurityUtil {
      * Get current token or generate new one
      * @return array
      */
-    public function getToken(): array {
+    public function getToken(): array
+    {
         try {
             if (file_exists(self::TOKEN_FILE)) {
                 $tokenData = json_decode(file_get_contents(self::TOKEN_FILE), true);
@@ -337,7 +353,8 @@ class SecurityUtil {
      * @param string|null $token
      * @return array
      */
-    public function verifyToken(?string $token): array {
+    public function verifyToken(?string $token): array
+    {
         try {
             if ($token === null) {
                 return [
@@ -348,8 +365,8 @@ class SecurityUtil {
 
             $tokenData = $this->getToken();
             // Agregamos un margen de 30 segundos para la validación también
-            $isValid = hash_equals($tokenData['token'], $token) && 
-                      ($tokenData['expiration'] - 30) > time();
+            $isValid = hash_equals($tokenData['token'], $token) &&
+                ($tokenData['expiration'] - 30) > time();
 
             return [
                 'valid' => $isValid,
@@ -368,11 +385,12 @@ class SecurityUtil {
      * Verify token from request header and authorize request
      * @return array
      */
-    public function verifyRequestToken(): array {
+    public function verifyRequestToken(): array
+    {
         try {
             // Obtener headers de forma más eficiente
             $headers = array_change_key_case(getallheaders(), CASE_UPPER);
-            
+
             // Mapeo directo de headers a buscar (en mayúsculas para comparación case-insensitive)
             $headerMap = [
                 'X-CSRF-TOKEN' => true,
@@ -384,7 +402,7 @@ class SecurityUtil {
             // Buscar token de forma eficiente
             $token = null;
             $foundHeader = array_intersect_key($headers, $headerMap);
-            
+
             if (!empty($foundHeader)) {
                 $token = reset($foundHeader);
                 // Extraer Bearer token si es necesario
@@ -410,7 +428,7 @@ class SecurityUtil {
                 'success' => true,
                 'message' => 'Request authorized'
             ];
-            
+
         } catch (Exception $e) {
             http_response_code(500);
             return [
@@ -424,17 +442,30 @@ class SecurityUtil {
      * Send JSON response with proper headers
      * @param mixed $data
      */
-    private function sendJsonResponse(mixed $data): void {
+    private function sendJsonResponse(mixed $data): void
+    {
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode($data, JSON_THROW_ON_ERROR);
     }
 
     // @deprecated Legacy methods for backward compatibility
-    public static function getObj($req) { return self::arrayToObject((array)$req); }
-    public static function crearObjetosUnicos($array, $key) { return self::createUniqueObjects($array, $key); }
-    public static function save_log($prefix, $message) { self::saveLog($prefix, $message); }
-    public static function get_dominio_now($path = false) { return self::getCurrentDomain($path); }
+    public static function getObj($req)
+    {
+        return self::arrayToObject((array) $req);
+    }
+    public static function crearObjetosUnicos($array, $key)
+    {
+        return self::createUniqueObjects($array, $key);
+    }
+    public static function save_log($prefix, $message)
+    {
+        self::saveLog($prefix, $message);
+    }
+    public static function get_dominio_now($path = false)
+    {
+        return self::getCurrentDomain($path);
+    }
 }
 
 // Initialize utility class with request data if available
-$util = new SecurityUtil(isset($_REQUEST) ? (object)$_REQUEST : null);
+$util = new SecurityUtil(isset($_REQUEST) ? (object) $_REQUEST : null);

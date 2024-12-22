@@ -37,7 +37,8 @@ class TableManager extends DatabaseConnection
     /**
      * Convierte un valor que puede ser array en un valor simple
      */
-    private function normalizeValue($value) {
+    private function normalizeValue($value)
+    {
         if (is_array($value) && count($value) === 1) {
             return reset($value);
         }
@@ -47,7 +48,8 @@ class TableManager extends DatabaseConnection
     /**
      * Normaliza un array de datos, convirtiendo arrays de un solo elemento en valores simples
      */
-    private function normalizeData($data) {
+    private function normalizeData($data)
+    {
         $normalized = [];
         foreach ($data as $key => $value) {
             $normalized[$key] = $this->normalizeValue($value);
@@ -123,7 +125,7 @@ class TableManager extends DatabaseConnection
 
             return $description;
         } catch (PDOException $e) {
-            throw new PDOException("Failed to describe table: " . $e->getMessage(), (int)$e->getCode());
+            throw new PDOException("Failed to describe table: " . $e->getMessage(), (int) $e->getCode());
         } catch (JsonException $e) {
             throw new RuntimeException("Failed to cache table description: " . $e->getMessage());
         }
@@ -139,11 +141,13 @@ class TableManager extends DatabaseConnection
     /**
      * Optimiza la generación de alias de tabla
      */
-    private function generateTableAlias(string $table): string {
+    private function generateTableAlias(string $table): string
+    {
         return substr($table, 0, 1) . substr(md5($table), 0, 3);
     }
 
-    private function extractCustomJoinTables(array $customJoins): array {
+    private function extractCustomJoinTables(array $customJoins): array
+    {
         $tables = [];
         foreach ($customJoins as $join) {
             if (preg_match('/\bJOIN\s+(\w+)\b/i', $join, $matches)) {
@@ -156,22 +160,23 @@ class TableManager extends DatabaseConnection
     /**
      * Procesa las condiciones WHERE de manera optimizada
      */
-    private function processWhereConditions(array $tables, array $data, bool $alias_activar, array $table_aliases, ?array $customJoins = null): array {
+    private function processWhereConditions(array $tables, array $data, bool $alias_activar, array $table_aliases, ?array $customJoins = null): array
+    {
         $where_conditions = [];
         $values = [];
-        
+
         // Agregar tablas de custom joins
         if ($customJoins !== null) {
             $joinTables = $this->extractCustomJoinTables($customJoins);
             $tables = array_merge($tables, $joinTables);
         }
-    
+
         // Procesar cada tabla
         foreach ($tables as $table) {
             $table_description = $this->getTableDescription($table);
             $table_fields = array_column($table_description, 'Field');
             $table_prefix = $alias_activar ? "{$table_aliases[$table]}." : "$table.";
-    
+
             foreach ($data as $key => $value) {
                 if (in_array($key, $table_fields) && $value !== null && $value !== '') {
                     $where_conditions[] = "$table_prefix$key = ?";
@@ -179,7 +184,7 @@ class TableManager extends DatabaseConnection
                 }
             }
         }
-    
+
         return ['conditions' => $where_conditions, 'values' => $values];
     }
 
@@ -252,11 +257,11 @@ class TableManager extends DatabaseConnection
 
         // Agregar FROM y JOINs
         $sql .= " FROM $firstTable" . ($alias_activar ? " AS {$table_aliases[$firstTable]}" : "");
-        
+
         foreach ($tables as $table) {
             if ($table !== $firstTable) {
-                $sql .= " NATURAL JOIN $table" . 
-                       ($alias_activar ? " AS {$table_aliases[$table]}" : "");
+                $sql .= " NATURAL JOIN $table" .
+                    ($alias_activar ? " AS {$table_aliases[$table]}" : "");
             }
         }
 
@@ -357,7 +362,8 @@ class TableManager extends DatabaseConnection
         foreach ($table_description as $column) {
             $key = $column['Field'];
             // Verifica si el campo cumple con las condiciones
-            if ($column['Key'] != 'PRI'
+            if (
+                $column['Key'] != 'PRI'
                 && strpos($column['Extra'], 'auto_increment') === false
                 && isset($data[$key])
             ) {
@@ -390,7 +396,7 @@ class TableManager extends DatabaseConnection
         // Construir la cláusula de inserción
         $keys = implode(', ', array_keys($valid_data));
         $placeholders = implode(', ', array_fill(0, count($valid_data), '?'));
-        $values = self::allArrayOneArray($valid_data); 
+        $values = self::allArrayOneArray($valid_data);
 
         // Construir la consulta SQL de inserción de forma dinámica
         $sql = "INSERT INTO $table_name ($keys) VALUES ($placeholders)";
@@ -405,23 +411,23 @@ class TableManager extends DatabaseConnection
                     'sql' => $sql,
                     'keys' => $keys,
                     'placeholders' => $placeholders,
-                    'values' => $values, 
+                    'values' => $values,
                 ];
             }
         } catch (PDOException $e) {
             $obj = (object) [
-                'msj' => 'Error al insertar los datos en la ['.$table_name.']: '.$e->getMessage(),
+                'msj' => 'Error al insertar los datos en la [' . $table_name . ']: ' . $e->getMessage(),
                 'sql' => $sql,
                 'keys' => $keys,
                 'placeholders' => $placeholders,
-                'values' => $values, 
-                'valid_data' => $valid_data, 
+                'values' => $values,
+                'valid_data' => $valid_data,
                 'resp' => 'err'
             ];
             return $obj;
         }
 
-        $newname = 'id'.$table_name;
+        $newname = 'id' . $table_name;
         $obj->insert_data[$newname] = $adb->lastInsertId();
         $obj->resp = ($obj->insert_data[$newname]) ? 'add' : 'err';
         $obj->TIME_SECOND = SecurityUtil::timeSecond($this->time);
@@ -661,7 +667,7 @@ class TableManager extends DatabaseConnection
             }
 
             $where_clause = !empty($where_conditions) ? " WHERE " . implode(" AND ", $where_conditions) : "";
-            $limit_clause = isset($options['limit']) ? " LIMIT " . (int)$options['limit'] : "";
+            $limit_clause = isset($options['limit']) ? " LIMIT " . (int) $options['limit'] : "";
             $order_clause = isset($options['order']) ? " ORDER BY " . $options['order'] : "";
 
             $query = "SELECT * FROM `$table_name`" . $where_clause . $order_clause . $limit_clause;
@@ -670,14 +676,62 @@ class TableManager extends DatabaseConnection
             $stmt = $pdo->prepare($query);
             $stmt->execute($params);
 
-            return (object)[
+            return (object) [
                 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC),
                 'count' => $stmt->rowCount(),
                 'query' => $query,
                 'params' => $params
             ];
         } catch (PDOException $e) {
-            throw new PDOException("Select query failed: " . $e->getMessage(), (int)$e->getCode());
+            throw new PDOException("Select query failed: " . $e->getMessage(), (int) $e->getCode());
         }
+    }
+
+
+    /**
+     * Construye una respuesta estandarizada a partir de múltiples selects.
+     * 
+     * @param array<string,object> $selectsWithKeys Array asociativo donde:
+     *  - Las keys son los nombres de los campos en la respuesta
+     *  - Los valores son objetos select con propiedades:
+     *  - data: mixed (datos del select)
+     *  - resp: mixed (información de respuesta)
+     *  - TIME_SECOND: float (tiempo de ejecución)
+     * 
+     * @return object Objeto con la estructura:
+     *  {
+     *      [key1]: mixed (data del select1),
+     *      [key2]: mixed (data del select2),
+     *      ...,
+     *      resp: mixed (resp del primer select),
+     *      TIME_SECOND: float (suma de tiempos)
+     *  }
+     */
+    public static function buildSelectResponse(array $selectsWithKeys): object
+    {
+        if (empty($selectsWithKeys)) {
+            return (object) [
+                'resp' => null,
+                'TIME_SECOND' => 0
+            ];
+        }
+
+        // Obtenemos el primer select para 'resp'
+        $firstSelect = reset($selectsWithKeys);
+
+        return (object) [
+            // Extraemos todos los data usando array_map
+            ...array_map(fn($select) => $select->data, $selectsWithKeys),
+
+            // Agregamos resp del primer select
+            'resp' => $firstSelect->resp,
+
+            // Calculamos el tiempo total usando array_reduce
+            'TIME_SECOND' => array_reduce(
+                $selectsWithKeys,
+                fn($total, $select) => $total + $select->TIME_SECOND,
+                0
+            )
+        ];
     }
 }
