@@ -1,25 +1,28 @@
 <?php
 declare(strict_types=1);
 
-require_once(__DIR__ . "/../Core/ConfigurationManager.php");
+require_once(__DIR__ . "/../../Core/ConfigurationManager.php");
 
 /**
  * Email service class for handling email operations
  */
-class EmailService {
+class EmailService
+{
     private string $smtpServer = 'smtp.gmail.com';
     private int $port = 587;
     private string $username;
     private string $password;
     private string $fromName;
 
-    public function __construct(string $username, string $password, string $fromName = '') {
+    public function __construct(string $username, string $password, string $fromName = '')
+    {
         $this->username = $username;
         $this->password = $password;
         $this->fromName = $fromName ?: $username;
     }
 
-    public function sendEmail(string $to, string $subject, string $body, bool $isHTML = true) {
+    public function sendEmail(string $to, string $subject, string $body, bool $isHTML = true)
+    {
         $headers = [
             'From' => $this->fromName . ' <' . $this->username . '>',
             'Reply-To' => $this->username,
@@ -29,7 +32,8 @@ class EmailService {
         ];
 
         $smtp_conn = fsockopen($this->smtpServer, $this->port, $errno, $errstr, 30);
-        if (!$smtp_conn) return "Conexión fallida: $errstr ($errno)";
+        if (!$smtp_conn)
+            return "Conexión fallida: $errstr ($errno)";
 
         $this->serverParse($smtp_conn, '220');
         fwrite($smtp_conn, 'EHLO ' . $this->smtpServer . "\r\n");
@@ -71,7 +75,8 @@ class EmailService {
         return true;
     }
 
-    private function serverParse($conn, $expected_response) {
+    private function serverParse($conn, $expected_response)
+    {
         $response = '';
         while (substr($response, 3, 1) != ' ') {
             if (!($response = fgets($conn, 256))) {

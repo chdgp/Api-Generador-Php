@@ -1,14 +1,20 @@
 <?php
-require_once(__DIR__ . '/../../../../Core/Init.php');
-require_once(__DIR__ . '/../../TrackedEmailService.php');
+chdir(directory: "../../../");
+//print_r(getcwd());die;
+
+require_once "config/Core/Init.php";
+require_once "config/Core/ConfigurationManager.php";
+require_once "config/Library/Email/EmailService.php";
+require_once "config/Library/Email/TrackedEmailService.php";
 
 // Configurar headers para respuesta JSON
-header('Content-Type: application/json; charset=utf-8');
+header(header: 'Content-Type: application/json; charset=utf-8');
 
 /**
  * Función helper para enviar respuestas JSON
  */
-function sendJsonResponse($success, $data = [], $message = '', $code = 200) {
+function sendJsonResponse($success, $data = [], $message = '', $code = 200)
+{
     http_response_code($code);
     echo json_encode([
         'success' => $success,
@@ -64,20 +70,20 @@ try {
     </html>';
 
     // Enviar el correo
-    $trackingId = $emailService->sendEmail(
+    $array = $emailService->sendEmail(
         $inputData['to'],
         $inputData['subject'],
         $htmlBody,
         true
     );
 
-    if ($trackingId) {
+    if (!empty($array)) {
         $response = [
-            'tracking_id' => $trackingId,
+            'tracking_id' => $array[0],
             'recipient' => $inputData['to'],
             'subject' => $inputData['subject'],
             'sent_date' => date('Y-m-d H:i:s'),
-            'tracking_url' => $_SERVER['REQUEST_SCHEME'] . '://' . $_SERVER['HTTP_HOST'] . '/v3/config/Library/Email/Example/Track/?id=' . $trackingId
+            'tracking_url' => $array[1]
         ];
 
         sendJsonResponse(true, $response, 'Correo enviado exitosamente');
