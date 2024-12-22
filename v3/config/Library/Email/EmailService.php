@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once(__DIR__ . "/../lib/ConfigurationManager.php");
+require_once(__DIR__ . "/../Core/ConfigurationManager.php");
 
 /**
  * Email service class for handling email operations

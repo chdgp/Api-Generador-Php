@@ -3,7 +3,7 @@
 ini_set('display_errors', 'on');
 error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED & ~E_WARNING);
 
-require_once '../config/Security/SecurityUtil.php';
+require_once '../config/Library/Security/SecurityUtil.php';
 
 
 function extractModesFromSwitch($filePath, $className)

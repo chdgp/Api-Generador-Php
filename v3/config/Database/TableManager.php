@@ -1,7 +1,7 @@
 <?php
 
-require_once(__DIR__ . "/../Database/DatabaseConnection.php");
-require_once(__DIR__ . "/../Security/SecurityUtil.php");
+require_once(__DIR__ . "/DatabaseConnection.php");
+require_once(__DIR__ . "/../Library/Security/SecurityUtil.php");
 require_once(__DIR__ . "/DatabaseMiddleware.php");
 
 /**

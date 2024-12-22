@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Prueba de Envío de Correo</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; padding: 0 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; }
+        input, textarea { width: 100%; padding: 8px; margin-bottom: 10px; }
+        button { background: #4CAF50; color: white; padding: 10px 15px; border: none; cursor: pointer; }
+        #response { margin-top: 20px; padding: 10px; border-radius: 4px; }
+        .success { background: #dff0d8; border: 1px solid #d6e9c6; }
+        .error { background: #f2dede; border: 1px solid #ebccd1; }
+    </style>
+</head>
+<body>
+    <h2>Enviar Correo con Tracking</h2>
+    <form id="emailForm">
+        <div class="form-group">
+            <label for="to">Destinatario:</label>
+            <input type="email" id="to" name="to" required>
+        </div>
+        <div class="form-group">
+            <label for="subject">Asunto:</label>
+            <input type="text" id="subject" name="subject" required>
+        </div>
+        <div class="form-group">
+            <label for="body">Mensaje:</label>
+            <textarea id="body" name="body" rows="6" required></textarea>
+        </div>
+        <button type="submit">Enviar Correo</button>
+    </form>
+    <div id="response"></div>
+
+    <script>
+    document.getElementById('emailForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const responseDiv = document.getElementById('response');
+        
+        try {
+            const response = await fetch('send.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    to: form.to.value,
+                    subject: form.subject.value,
+                    body: form.body.value
+                })
+            });
+
+            const data = await response.json();
+            
+            responseDiv.className = data.success ? 'success' : 'error';
+            responseDiv.innerHTML = `
+                <h3>${data.success ? 'Éxito' : 'Error'}</h3>
+                <p>${data.message}</p>
+                ${data.success ? `
+                    <p>ID de seguimiento: ${data.data.tracking_id}</p>
+                    <p>URL de tracking: ${data.data.tracking_url}</p>
+                ` : ''}
+            `;
+        } catch (error) {
+            responseDiv.className = 'error';
+            responseDiv.innerHTML = `
+                <h3>Error</h3>
+                <p>Error al enviar el correo: ${error.message}</p>
+            `;
+        }
+    });
+    </script>
+</body>
+</html>
