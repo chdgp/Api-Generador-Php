@@ -1,8 +1,9 @@
 <?php
 declare(strict_types=1);
 
-require_once(__DIR__ . "/Environment.php");
-require_once(__DIR__ . "/Init.php");
+require_once __DIR__ . "/Environment.php";
+require_once __DIR__ . "/Init.php";
+require_once __DIR__ . "/../Library/Security/SecurityUtil.php";
 
 /**
  * Core configuration class for managing database and application settings

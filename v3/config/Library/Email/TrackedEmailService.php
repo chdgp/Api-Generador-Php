@@ -11,28 +11,55 @@ require_once(__DIR__ . '/../../Database/DatabaseConnection.php');
 class TrackedEmailService extends EmailService
 {
     private string $trackingTable = '__email_tracking';
+    private string $primaryKey;
     private ?PDO $db;
     private bool $trackingEnabled = false;
-    private string $trackingPath;
+    private string $trackingPath = '/v3/test/Email/Track/';
 
-    public function __construct(
-        ?PDO $db = null,
-        string $trackingPath = '/v3/test/Email/Track/'
-    ) {
-        global $con_mail;
-
-        if (!isset($con_mail['username']) || !isset($con_mail['pass'])) {
-            throw new Exception('Email configuration not found in Init.php');
-        }
-
-        parent::__construct($con_mail['username'], $con_mail['pass'], $con_mail['fromname'] ?? '');
+    public function __construct(?PDO $db = null, string $trackingPath = '', array $db_mail = [])
+    {
 
         // Intentamos establecer la conexión a la base de datos
         $this->db = $db ?? $this->createDatabaseConnection();
-
-        $this->trackingPath = $trackingPath;
-        $this->trackingEnabled = true;
         $this->initializeTrackingTable();
+
+        $this->init_env($db_mail);
+
+        if (!empty($trackingPath))
+            $this->trackingPath = $trackingPath;
+
+        $this->trackingEnabled = true;
+
+    }
+
+    public function init_env($db_mail = [])
+    {
+        global $con_mail;
+        $fromname = $con_mail['fromname'] ?? '';
+
+        if (!$db_mail) {
+
+            if (!isset($con_mail['username']) || !isset($con_mail['pass'])) {
+                throw new Exception('Email configuration not found in Init.php');
+            }
+
+            $username = $con_mail['username'];
+            $pass = $con_mail['pass'];
+        } else {
+
+            if (empty($db_mail['username']) || empty($db_mail['pass'])) {
+                throw new Exception('Database email configuration missing "username" or "pass".');
+            }
+            $username = $db_mail['username'];
+            $pass = $db_mail['pass'];
+        }
+
+        parent::__construct($username, $pass, $fromname);
+
+        if (isset($db_mail['smtp_server']) && $db_mail['smtp_server']) {
+            parent::setSMTPSettings($db_mail['smtp_server'], $db_mail['port'] ?? 587);
+        }
+
     }
 
     private function createDatabaseConnection(): ?PDO
@@ -41,7 +68,7 @@ class TrackedEmailService extends EmailService
             $dbConnection = new DatabaseConnection();
             return $dbConnection->getPDO();
         } catch (Exception $e) {
-            error_log("Error connecting to database: " . $e->getMessage());
+            SecurityUtil::saveLog(__CLASS__, "Error connecting to database: " . $e->getMessage());
             return null;
         }
     }
@@ -51,9 +78,12 @@ class TrackedEmailService extends EmailService
      */
     private function initializeTrackingTable(): void
     {
+
+        $this->primaryKey = 'id' . $this->trackingTable;
+
         try {
             $sql = "CREATE TABLE IF NOT EXISTS {$this->trackingTable} (
-                id{$this->trackingTable} BIGINT AUTO_INCREMENT PRIMARY KEY,
+                id{$this->primaryKey} BIGINT AUTO_INCREMENT PRIMARY KEY,
                 tracking_id VARCHAR(50) NOT NULL UNIQUE,
                 recipient_email TEXT NOT NULL,
                 subject VARCHAR(255) NOT NULL,
@@ -69,7 +99,7 @@ class TrackedEmailService extends EmailService
             )";
             $this->db->exec($sql);
         } catch (PDOException $e) {
-            error_log("Error creating tracking table: " . $e->getMessage());
+            SecurityUtil::saveLog(__CLASS__, "Error creating tracking table: " . $e->getMessage());
             $this->trackingEnabled = false;
         }
     }
@@ -80,13 +110,13 @@ class TrackedEmailService extends EmailService
     private function generateTrackingId(): string
     {
         try {
-            $stmt = $this->db->prepare(
-                "SELECT tracking_id FROM {$this->trackingTable} ORDER BY id DESC LIMIT 1"
-            );
+            $query = "SELECTt $this->primaryKey + 1 FROM {$this->trackingTable} ORDER BY 1 DESC LIMIT 1";
+
+            // incrementar el ID
+            $stmt = $this->db->prepare($query);
             $stmt->execute();
             $lastTrackingId = $stmt->fetchColumn();
 
-            // Si existe un último tracking_id, incrementar el ID
             if ($lastTrackingId) {
                 return $lastTrackingId . bin2hex(random_bytes(16)); // Incrementar el último id
             }
@@ -94,7 +124,7 @@ class TrackedEmailService extends EmailService
             // Si no hay registros, generar un nuevo trackingId
             return '1' . bin2hex(random_bytes(16));
         } catch (PDOException $e) {
-            error_log("Error generating tracking ID: " . $e->getMessage());
+            SecurityUtil::saveLog(__CLASS__, "Error generating tracking ID: " . $e->getMessage());
             return bin2hex(random_bytes(16)); // Fallback en caso de error
         }
     }
@@ -113,7 +143,7 @@ class TrackedEmailService extends EmailService
             $stmt->execute([$trackingId, $to, $subject]);
             return true;
         } catch (PDOException $e) {
-            error_log("Error inserting tracking data: " . $e->getMessage());
+            SecurityUtil::saveLog(__CLASS__, "Error inserting tracking data: " . $e->getMessage());
             return false;
         }
     }
@@ -127,6 +157,8 @@ class TrackedEmailService extends EmailService
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
         $output = preg_split('(v3|' . $host . ')', __FILE__);
         $folder = (count($output) === 3) ? $output[1] : '';
+
+
         return $protocol . $host . $folder . $this->trackingPath . "?id={$trackingId}";
     }
 
@@ -151,6 +183,7 @@ class TrackedEmailService extends EmailService
      */
     public function sendEmail($to, string $subject, string $body, bool $isHTML = true, array $cc = [], array $bcc = [])
     {
+
         if (!$this->trackingEnabled || !$isHTML) {
             return parent::sendEmail($to, $subject, $body, $isHTML);
         }
@@ -172,7 +205,7 @@ class TrackedEmailService extends EmailService
             return $result ? [$trackingId, $trackingUrl] : [];
 
         } catch (PDOException $e) {
-            error_log("Error in tracked email: " . $e->getMessage());
+            SecurityUtil::saveLog(__CLASS__, "Error in tracked email: " . $e->getMessage());
             return parent::sendEmail($to, $subject, $body, $isHTML);
         }
     }
@@ -213,7 +246,7 @@ class TrackedEmailService extends EmailService
             );
             $stmt->execute([$userAgent, $ipAddress, $trackingId]);
         } catch (PDOException $e) {
-            error_log("Error updating tracking info: " . $e->getMessage());
+            SecurityUtil::saveLog(__CLASS__, "Error updating tracking info: " . $e->getMessage());
         }
 
         $this->returnTransparentPixel();
@@ -250,7 +283,7 @@ class TrackedEmailService extends EmailService
 
             return $result && $result['opened'] == 1;
         } catch (PDOException $e) {
-            error_log("Error checking email status: " . $e->getMessage());
+            SecurityUtil::saveLog(__CLASS__, "Error checking email status: " . $e->getMessage());
             return false;
         }
     }

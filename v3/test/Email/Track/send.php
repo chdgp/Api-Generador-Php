@@ -6,6 +6,7 @@ require_once "config/Core/Init.php";
 require_once "config/Core/ConfigurationManager.php";
 require_once "config/Library/Email/EmailService.php";
 require_once "config/Library/Email/TrackedEmailService.php";
+require_once "config/Library/Email/EmailServicePool.php";
 
 // Configurar headers para respuesta JSON
 header(header: 'Content-Type: application/json; charset=utf-8');
@@ -46,7 +47,10 @@ foreach ($requiredFields as $field) {
 
 try {
     // Crear instancia del servicio de email
-    $emailService = new TrackedEmailService();
+    //$emailService = new TrackedEmailService();
+
+    // Crear instancia del servicio de email desde la base de datos
+    $emailService = (new EmailServicePool())->getTrackedEmailService();
 
     // Preparar el cuerpo del correo con HTML básico
     $htmlBody = '
@@ -92,14 +96,13 @@ try {
     }
 
 } catch (Exception $e) {
-    error_log("Error sending email: " . $e->getMessage());
     sendJsonResponse(false, [], 'Error interno del servidor: ' . $e->getMessage(), 500);
 }
 
 
 /**
  * Usando cURL:
- *  curl -X POST http://tudominio.com/v3/config/Library/Email/Example/send.php \
+ *  curl -X POST http://tudominio.com/v3/config/test/Email/send.php \
  * -H "Content-Type: application/json" \
  * -d '{
  *     "to": "destinatario@email.com",
