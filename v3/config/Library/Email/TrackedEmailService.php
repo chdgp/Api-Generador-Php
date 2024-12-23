@@ -149,7 +149,7 @@ class TrackedEmailService extends EmailService
     /**
      * Sends an email with tracking capability if enabled
      */
-    public function sendEmail(string $to, string $subject, string $body, bool $isHTML = true): mixed
+    public function sendEmail($to, string $subject, string $body, bool $isHTML = true, array $cc = [], array $bcc = [])
     {
         if (!$this->trackingEnabled || !$isHTML) {
             return parent::sendEmail($to, $subject, $body, $isHTML);
