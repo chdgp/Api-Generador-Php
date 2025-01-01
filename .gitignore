@@ -1,17 +1,17 @@
-v2/module/*
-v2/storage/*
-v2/config/csrf_token.json
-v2/config/cache
-v2/config/init.php
+**/config/init.php
+**/config/cache
 
-v3/module/*
-v3/storage/*
-v3/config/Cache
+**/module/*
+**/storage/*
+**/config/Cache
 Init.php
-
-business/*
 *.json
 *.log
 key.js
 .htaccess
+
+# opcionales 
+**/business/*
+**/webservice/*
+**/src/*
 NewUrl.php

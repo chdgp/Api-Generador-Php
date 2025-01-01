@@ -8,8 +8,8 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED & ~E_WARNING);
 // Session configuration
 $sessionLifetime = 21200;
 if (session_status() === PHP_SESSION_NONE) {
-    ini_set('session.cookie_lifetime', (string)$sessionLifetime);
-    ini_set('session.gc_maxlifetime', (string)$sessionLifetime);
+    ini_set('session.cookie_lifetime', (string) $sessionLifetime);
+    ini_set('session.gc_maxlifetime', (string) $sessionLifetime);
     ini_set('session.save_path', sys_get_temp_dir());
     ini_set('session.cookie_secure', 'on');
     ini_set('session.cookie_httponly', 'on');
@@ -30,8 +30,8 @@ define('VERSION', date('YmdHis'));
 $requestInfo = [
     'lang' => $_GET['lang'] ?? 'es',
     'route' => $_GET['route'] ?? 'login',
-    'url' => (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . 
-            "://{$_SERVER['HTTP_HOST']}{$_SERVER['REQUEST_URI']}",
+    'url' => (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') .
+        "://{$_SERVER['HTTP_HOST']}{$_SERVER['REQUEST_URI']}",
 ];
 
 // Parse URL information
@@ -43,26 +43,10 @@ $requestInfo['path'] = basename($urlInfo['path'] ?? '');
 // API Controller detection and configuration
 if (strpos($requestInfo['path'], 'controller') !== false) {
     // Configure headers for API responses
-    $headers = [
-        'Access-Control-Allow-Origin: *',
-        'Access-Control-Allow-Credentials: true',
-        'Access-Control-Allow-Methods: PUT, GET, POST, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers: X-Requested-With, Content-Type, Authorization',
-        'Content-Type: application/json; charset=utf-8',
-        'Cache-Control: no-store, no-cache, must-revalidate, max-age=0',
-        'Pragma: no-cache',
-        'X-Content-Type-Options: nosniff',
-        'X-Frame-Options: DENY',
-        'X-XSS-Protection: 1; mode=block'
-    ];
-
-    // Set security headers
-    foreach ($headers as $header) {
-        header($header);
-    }
+    require_once "Cors.php";
 
     // Configure API directory
-    $_DIR = (object)[
+    $_DIR = (object) [
         'PATH' => str_replace('controller', 'model', $requestInfo['path'])
     ];
 } else {
