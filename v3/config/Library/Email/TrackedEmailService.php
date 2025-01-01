@@ -110,7 +110,7 @@ class TrackedEmailService extends EmailService
     private function generateTrackingId(): string
     {
         try {
-            $query = "SELECTt $this->primaryKey + 1 FROM {$this->trackingTable} ORDER BY 1 DESC LIMIT 1";
+            $query = "SELECT $this->primaryKey + 1 FROM {$this->trackingTable} ORDER BY 1 DESC LIMIT 1";
 
             // incrementar el ID
             $stmt = $this->db->prepare($query);
@@ -181,7 +181,7 @@ class TrackedEmailService extends EmailService
     /**
      * Sends an email with tracking capability if enabled
      */
-    public function sendEmail($to, string $subject, string $body, bool $isHTML = true, array $cc = [], array $bcc = [])
+    public function sendEmail($to, string $subject, string $body, bool $isHTML = true, array $cc = [], array $bcc = [], $attachments = [])
     {
 
         if (!$this->trackingEnabled || !$isHTML) {
@@ -201,7 +201,7 @@ class TrackedEmailService extends EmailService
             $body = $this->insertTrackingPixel($body, $trackingPixel);
 
             // Send the email
-            $result = parent::sendEmail($to, $subject, $body, true);
+            $result = parent::sendEmail($to, $subject, $body, true, $cc, $bcc, $attachments);
             return $result ? [$trackingId, $trackingUrl] : [];
 
         } catch (PDOException $e) {

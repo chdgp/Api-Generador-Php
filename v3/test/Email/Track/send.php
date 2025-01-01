@@ -73,12 +73,26 @@ try {
     </body>
     </html>';
 
+    /*
+    if (file_exists($path) && is_file($path) && is_readable($path) && filesize($path) > 0) {
+        echo "El archivo está listo para ser adjuntado\n";
+        echo "Tamaño: " . filesize($path) . " bytes\n";
+        echo "Tipo MIME: " . mime_content_type($path) . "\n";
+    } else {
+        echo "El archivo no es válido o no se puede acceder a él\n";
+    }
+    */
+
+
     // Enviar el correo
     $array = $emailService->sendEmail(
         $inputData['to'],
         $inputData['subject'],
         $htmlBody,
-        true
+        true,
+        [],   // CC
+        [],   // BCC
+        [] //[__DIR__ . '/file.pdf' => 'file_test.pdf']
     );
 
     if (!empty($array)) {
