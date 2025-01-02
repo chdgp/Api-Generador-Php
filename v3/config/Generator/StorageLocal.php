@@ -1,6 +1,7 @@
 <?php
 
-class StorageLocal {
+class StorageLocal
+{
     private const DEFAULT_PERMISSIONS = 0755;
     private const IMAGE_FORMATS = [
         'image/jpeg' => ['.jpg', IMAGETYPE_JPEG],
@@ -20,7 +21,7 @@ class StorageLocal {
     public static function get_dominio_now(bool $path = false): string
     {
         static $baseUrl = null;
-        
+
         if ($baseUrl === null) {
             $protocolo = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
             $dominio = $_SERVER['HTTP_HOST'];
@@ -33,7 +34,7 @@ class StorageLocal {
 
         static $pathUrl = null;
         if ($pathUrl === null) {
-            $fulldir = str_replace('/config', '', dirname(__FILE__));
+            $fulldir = str_replace('/config/Generator', '', dirname(__FILE__));
             $pathUrl = $baseUrl . str_replace($_SERVER['DOCUMENT_ROOT'], '', $fulldir);
         }
 
@@ -87,14 +88,14 @@ class StorageLocal {
 
         $width = imagesx($image);
         $height = imagesy($image);
-        
+
         if ($width <= $targetWidth) {
             return $image;
         }
 
         $ratio = $targetWidth / $width;
-        $newHeight = (int)floor($height * $ratio);
-        
+        $newHeight = (int) floor($height * $ratio);
+
         $newImage = imagecreatetruecolor($targetWidth, $newHeight);
         if (!$newImage) {
             return false;
@@ -107,13 +108,21 @@ class StorageLocal {
             $transparent = imagecolorallocatealpha($newImage, 0, 0, 0, 127);
             imagefilledrectangle($newImage, 0, 0, $targetWidth, $newHeight, $transparent);
         }
-        
-        if (!imagecopyresampled(
-            $newImage, $image,
-            0, 0, 0, 0,
-            $targetWidth, $newHeight,
-            $width, $height
-        )) {
+
+        if (
+            !imagecopyresampled(
+                $newImage,
+                $image,
+                0,
+                0,
+                0,
+                0,
+                $targetWidth,
+                $newHeight,
+                $width,
+                $height
+            )
+        ) {
             imagedestroy($newImage);
             return false;
         }
@@ -162,6 +171,9 @@ class StorageLocal {
         string $randon = '',
         bool $create_original = false
     ): object {
+
+
+
         // Validar URL
         if (!empty($base64string) && filter_var($base64string, FILTER_VALIDATE_URL)) {
             return (object) [
@@ -182,7 +194,10 @@ class StorageLocal {
 
         try {
             $_DOMINIO = self::get_dominio_now(true);
-            
+
+            // Enlazar carpeta con la del usuario
+            $folder .= $idusuario ? '/' . $idusuario : '';
+
             // Crear estructura de directorios
             $paths = [
                 self::STORAGE_PATH,
@@ -190,7 +205,8 @@ class StorageLocal {
                 self::STORAGE_PATH . $folder . '/' . date('Y'),
                 self::STORAGE_PATH . $folder . '/' . date('Y') . '/' . date('m')
             ];
-            
+
+
             $storagePath = end($paths);
             foreach ($paths as $path) {
                 if (!self::createDirectory($path)) {
@@ -201,7 +217,7 @@ class StorageLocal {
             // Decodificar y procesar imagen
             $base64Data = explode(',', $base64string);
             $fileContents = base64_decode($base64Data[1], true);
-            
+
             if ($fileContents === false) {
                 throw new Exception("Invalid base64 encoding");
             }
@@ -216,7 +232,7 @@ class StorageLocal {
             }
 
             [$extension, $imageType] = self::IMAGE_FORMATS[$image_info['mime']];
-            
+
             // Crear imagen desde string
             $image = self::createImageFromString($fileContents, $imageType);
             if (!$image) {
@@ -230,20 +246,20 @@ class StorageLocal {
                 if ($createWebp) {
                     $webpPath = $storagePath . '/webp';
                     self::createDirectory($webpPath);
-                    
+
                     $processedImage = self::processImage($image, self::DEFAULT_WIDTH, $imageType);
                     if (!$processedImage) {
                         throw new Exception("Failed to process image");
                     }
 
                     $webpFilePath = $webpPath . '/' . $randon . '_' . $idusuario . '_' . date('Ymd') . '.webp';
-                    
+
                     if (!self::saveImage($processedImage, $webpFilePath, IMAGETYPE_WEBP)) {
                         throw new Exception("Failed to save WebP image");
                     }
 
                     $result['webp'] = $_DOMINIO . '/' . $webpFilePath;
-                    
+
                     if ($processedImage !== $image) {
                         imagedestroy($processedImage);
                     }
@@ -253,12 +269,12 @@ class StorageLocal {
                 if ($create_original) {
                     $originalPath = $storagePath . '/original';
                     self::createDirectory($originalPath);
-                    
+
                     $filePath = $originalPath . '/' . $idusuario . '_' . date('Ymd') . $extension;
                     if (!file_put_contents($filePath, $fileContents)) {
                         throw new Exception("Failed to save original image");
                     }
-                    
+
                     $result['original'] = $_DOMINIO . '/' . $filePath;
                 }
 
@@ -280,4 +296,65 @@ class StorageLocal {
             ];
         }
     }
+
+    public static function storeFile(string $fileName, array $FILE, string $id, string $folder = 'files'): object
+    {
+        try {
+            // Enlazar carpeta con la del usuario
+            $folder .= $id ? '/' . $id : '';
+
+            $fileParts = pathinfo($FILE['name']);
+            $extension = isset($fileParts['extension']) ? strtolower($fileParts['extension']) : '';
+
+            // Restricciones de tipos de archivo permitidos
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'docx', 'xlsx', 'xls', 'csv', 'doc', 'txt', 'webp', 'ppt', 'pptx', 'xml']; // Añadir más extensiones según sea necesario
+            if (!in_array($extension, $allowedExtensions)) {
+                throw new Exception('Invalid file type. Only images and documents are allowed.');
+            }
+
+            // Crear estructura de directorios
+            $paths = [
+                self::STORAGE_PATH,
+                self::STORAGE_PATH . $folder,
+                self::STORAGE_PATH . $folder . '/' . date('Y'),
+                self::STORAGE_PATH . $folder . '/' . date('Y') . '/' . date('m')
+            ];
+
+            $storagePath = end($paths);
+            foreach ($paths as $path) {
+                if (!self::createDirectory($path)) {
+                    throw new Exception("Failed to create directory: $path");
+                }
+            }
+
+            $destinationPath = $storagePath . '/' . $fileName . '.' . $extension;
+
+            // Deshabilitar la ejecución de archivos: Establecer permisos seguros
+            if (file_exists($destinationPath)) {
+                throw new Exception('File already exists.');
+            }
+
+            // Mover el archivo al directorio destino
+            if (!move_uploaded_file($FILE['tmp_name'], $destinationPath)) {
+                throw new Exception('Failed to move file');
+            }
+
+            // Cambiar permisos del archivo para que no sea ejecutable (0x0444 es solo lectura)
+            chmod($destinationPath, 0444); // Asegura que el archivo no sea ejecutable
+
+            // Obtener URL base
+            $baseUrl = self::get_dominio_now(true);
+            return (object) [
+                'resp' => 'file_uploaded',
+                'original' => $baseUrl . '/' . $destinationPath,
+                'type' => $FILE['type']
+            ];
+        } catch (Exception $e) {
+            return (object) [
+                'resp' => 'file_create_err',
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
 }

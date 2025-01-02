@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subir Archivo</title>
+    <style>
+        /* Estilos Generales */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        h2 {
+            text-align: center;
+            color: #333;
+            font-size: 2rem;
+            margin-bottom: 20px;
+        }
+
+        .container {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 600px;
+            padding: 30px;
+            box-sizing: border-box;
+        }
+
+        /* Estilo para los grupos de formulario */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            font-size: 1rem;
+            color: #555;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            font-size: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            border-color: #5c9ded;
+            outline: none;
+        }
+
+        .form-group input[type="file"] {
+            padding: 5px;
+            font-size: 1rem;
+        }
+
+        /* Estilo para los botones */
+        button[type="submit"] {
+            background-color: #5c9ded;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.3s ease;
+        }
+
+        button[type="submit"]:hover {
+            background-color: #4a8cdb;
+        }
+
+        /* Estilo para las opciones de imagen */
+        .image-options {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .image-options h3 {
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+            color: #333;
+        }
+
+        .image-options label {
+            font-size: 1rem;
+            color: #555;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .image-options input[type="checkbox"] {
+            margin-right: 10px;
+        }
+
+        /* Estilo de error y éxito */
+        .error, .success {
+            display: none;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        /* Estilo para la vista previa */
+        .preview {
+            max-width: 100%;
+            margin-top: 15px;
+            display: none;
+            border-radius: 4px;
+        }
+
+        /* Contenedor para el resultado final */
+        .result-container {
+            margin-top: 30px;
+        }
+
+        .file-link {
+            color: #007bff;
+            text-decoration: none;
+            font-size: 0.9rem;
+            word-wrap: break-word;
+        }
+
+        .file-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Subir Archivo</h2>
+        <form id="uploadForm" action="process_file.php" method="POST" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="file">Seleccionar archivo:</label>
+                <input type="file" id="file" name="file" required>
+                <div class="file-info"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="userId">ID de Usuario:</label>
+                <input type="number" id="userId" name="userId" required>
+            </div>
+
+            <div class="form-group">
+                <label for="folder">Carpeta destino:</label>
+                <select id="folder" name="folder">
+                    <option value="files">Archivos generales</option>
+                    <option value="image">Imágenes</option>
+                    <option value="documents">Documentos</option>
+                    <option value="perfiles">Perfiles</option>
+                </select>
+            </div>
+
+            <!-- Opciones específicas para imágenes -->
+            <div id="imageOptions" class="image-options">
+                <h3>Opciones de imagen</h3>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" name="createWebp" checked> Crear versión WebP
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" name="saveOriginal"> Guardar original
+                    </label>
+                </div>
+
+                <img id="preview" class="preview" alt="Vista previa">
+            </div>
+
+            <div class="form-group">
+                <button type="submit">Subir Archivo</button>
+            </div>
+        </form>
+
+        <div id="success" class="success">
+            Archivo subido correctamente
+        </div>
+
+        <div id="resultContainer" class="result-container"></div>
+    </div>
+</body>
+</html>
+
+
+    <script>
+        const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        const fileInput = document.getElementById('file');
+        const imageOptions = document.getElementById('imageOptions');
+        const preview = document.getElementById('preview');
+        const fileInfo = document.querySelector('.file-info');
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Mostrar información del archivo
+            fileInfo.textContent = `Tipo: ${file.type || 'desconocido'}, Tamaño: ${formatFileSize(file.size)}`;
+
+            // Si es una imagen, mostrar opciones y vista previa
+            if (imageTypes.includes(file.type)) {
+                imageOptions.style.display = 'block';
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                imageOptions.style.display = 'none';
+                preview.style.display = 'none';
+            }
+        });
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch('process_file.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                const success = document.getElementById('success');
+                const resultContainer = document.getElementById('resultContainer');
+                
+                if (data.resp === 'add_file_create' || data.resp === 'file_uploaded') {
+                    success.style.display = 'block';
+                    resultContainer.innerHTML = '';
+                    
+                    if (data.original) {
+                        // Si es una imagen, mostrarla
+                        if (imageTypes.includes(data.type)) {
+                            const originalImg = document.createElement('img');
+                            originalImg.src = data.original;
+                            originalImg.alt = 'Archivo Original';
+                            resultContainer.appendChild(originalImg);
+                        }
+                        // Mostrar enlace al archivo
+                        const link = document.createElement('a');
+                        link.href = data.original;
+                        link.textContent = 'Descargar archivo original';
+                        link.className = 'file-link';
+                        resultContainer.appendChild(link);
+                    }
+                    
+                    if (data.webp) {
+                        const webpImg = document.createElement('img');
+                        webpImg.src = data.webp;
+                        webpImg.alt = 'Versión WebP';
+                        resultContainer.appendChild(webpImg);
+                    }
+                } else {
+                    alert('Error: ' + (data.error || data.resp));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al subir el archivo');
+            });
+        });
+    </script>
